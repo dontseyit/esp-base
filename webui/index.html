@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>esp-base console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><span class="dot" id="dot" title="WebSocket"></span><span id="host">esp-base</span></div>
+    <div class="stats">
+      <span id="s-wifi" title="WiFi state">&ndash;</span>
+      <span id="s-ip" title="IP address">&ndash;</span>
+      <span id="s-rssi" title="Signal">&ndash;</span>
+      <span id="s-heap" title="Free heap">&ndash;</span>
+      <span id="s-uptime" title="Uptime">&ndash;</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-panel="console">Console</button>
+      <button class="tab" data-panel="wifi">WiFi</button>
+      <button class="tab" data-panel="update">Update</button>
+      <button class="tab" data-panel="info">Info</button>
+    </nav>
+  </header>
+  <main>
+    <section id="console" class="panel active">
+      <div class="toolbar">
+        <label>Level
+          <select id="level">
+            <option value="4">debug</option>
+            <option value="3">info</option>
+            <option value="2">warn</option>
+            <option value="1">error</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="autoscroll" checked> Autoscroll</label>
+        <input id="filter" placeholder="filter text" size="18">
+        <button type="button" id="clear">Clear</button>
+      </div>
+      <div id="log" class="log min-4"></div>
+      <form id="cmdform" class="cmd" autocomplete="off">
+        <span class="prompt">&gt;</span>
+        <input id="cmd" placeholder="command (try: help)" spellcheck="false">
+        <button type="submit" class="primary">Run</button>
+      </form>
+    </section>
+
+    <section id="wifi" class="panel scroll">
+      <div class="cols">
+        <div>
+          <h3>Stored networks</h3>
+          <table id="netlist"></table>
+          <p class="hint">Tried in slot order, hidden networks included. When none connects the access point comes up and the list is retried on the interval below.</p>
+          <form id="wifiform" class="stack">
+            <label>Network (SSID)
+              <input id="ssid" maxlength="32" required list="ssids">
+              <datalist id="ssids"></datalist>
+            </label>
+            <label>Password
+              <input id="pass" type="password" maxlength="63" placeholder="empty for an open network">
+            </label>
+            <div class="row">
+              <button type="submit" class="primary">Save as primary &amp; connect</button>
+              <button type="button" id="addnet">Add as backup</button>
+              <button type="button" id="scan">Scan</button>
+            </div>
+            <p id="wifimsg" class="msg"></p>
+          </form>
+          <table id="scanlist"></table>
+        </div>
+        <div>
+          <h3>Connection settings</h3>
+          <form id="setform" class="stack">
+            <label>Mode
+              <select id="mode">
+                <option value="sta">Station, access point only as fallback</option>
+                <option value="apsta">Station + access point always on</option>
+                <option value="ap">Access point only, station disabled</option>
+              </select>
+            </label>
+            <label>Give up on one network after (seconds)
+              <input id="staTimeout" type="number" min="3" max="300" required>
+            </label>
+            <label>After a lost link, retry before starting the AP for (seconds, 0 = AP immediately)
+              <input id="reconnTimeout" type="number" min="0" max="3600" required>
+            </label>
+            <label>In AP mode, retry the stored networks every (seconds, 0 = never)
+              <input id="apRetry" type="number" min="0" max="3600" required>
+            </label>
+            <div class="row"><button type="submit" class="primary">Apply</button></div>
+            <p id="setmsg" class="msg"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="update" class="panel">
+      <form id="otaform" class="stack">
+        <label>Firmware image (.bin)
+          <input type="file" id="fw" accept=".bin" required>
+        </label>
+        <div class="row"><button type="submit" class="primary">Upload &amp; flash</button></div>
+        <progress id="otaprog" value="0" max="100" hidden></progress>
+        <p id="otamsg" class="msg"></p>
+        <p class="hint">Upload the <code>firmware.bin</code> produced by <code>pio run</code>. If an OTA password is set, sign in as <code>admin</code>.</p>
+      </form>
+    </section>
+
+    <section id="info" class="panel">
+      <pre id="infobox">loading&hellip;</pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
