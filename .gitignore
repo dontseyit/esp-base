@@ -1,0 +1,42 @@
+# ---- Build output -------------------------------------
+.pio/
+/out/
+/dist/
+*.bin
+*.elf
+*.map
+*.hex
+
+# ---- Local settings and secrets -----------------------
+# Per-developer PlatformIO overrides: 
+# upload ports, espota --auth passwords.
+platformio_override.ini
+.env
+.env.*
+secrets.h
+*_secrets.h
+credentials.h
+*.pem
+*.key
+*.p12
+
+# ---- Editors and tools --------------------------------
+# PlatformIO regenerates these with absolute local paths; 
+# share only the extension recommendations.
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ---- Python --------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- OS ------------------------------------------------
+.DS_Store
+Thumbs.db

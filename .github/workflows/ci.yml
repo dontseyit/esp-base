@@ -1,0 +1,86 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Third-party actions are pinned to commit SHAs; the comment names the tag.
+jobs:
+  checks:
+    name: web asset guard and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Generated header must match webui/
+        run: python tools/build_web.py --check
+      - name: Install PlatformIO Core
+        run: pip install platformio==6.1.19
+      - name: Host unit tests
+        run: pio test -e native
+
+  build:
+    name: build ${{ matrix.env }}
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [esp32, esp32s3, esp32c3, esp32c6, esp32s2]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'library.json') }}
+          restore-keys: pio-${{ runner.os }}-
+      - name: Install PlatformIO Core
+        run: pip install platformio==6.1.19
+      - name: Build examples/minimal
+        run: pio run -e ${{ matrix.env }} 2>&1 | tee build.log
+      - name: No warnings from this repository
+        run: |
+          if grep -E "warning:" build.log | grep -vE "\.pio/libdeps|\.platformio/packages"; then
+            echo "::error::compiler warnings in library or example sources"; exit 1
+          fi
+      - name: Collect firmware
+        run: |
+          mkdir -p out
+          cp .pio/build/${{ matrix.env }}/firmware.bin out/esp-base-minimal-${{ matrix.env }}.bin
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: firmware-${{ matrix.env }}
+          path: out/*.bin
+
+  release:
+    name: github release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: dist/*.bin
+          generate_release_notes: true
