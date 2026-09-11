@@ -1,0 +1,49 @@
+{
+  "name": "EspBase",
+  "version": "1.0.0",
+  "description": "Baseline for ESP32 Arduino projects: WiFi station with AP fallback and captive portal, browser console with live logs and commands, OTA updates, persistent config and structured logging.",
+  "keywords": "esp32, esp32-s3, esp32-c3, wifi, captive portal, ota, websocket, console, logging",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zor/esp-base.git"
+  },
+  "authors": [
+    {
+      "name": "Seyit Zor",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": "EspBase.h",
+  "dependencies": [
+    {
+      "owner": "ESP32Async",
+      "name": "AsyncTCP",
+      "version": "^3.5.0"
+    },
+    {
+      "owner": "ESP32Async",
+      "name": "ESPAsyncWebServer",
+      "version": "^3.12.0"
+    },
+    {
+      "owner": "bblanchon",
+      "name": "ArduinoJson",
+      "version": "^7.4.0"
+    }
+  ],
+  "export": {
+    "exclude": [
+      ".github",
+      ".pio",
+      "webui",
+      "tools",
+      "platformio.ini",
+      "PROJECT.md",
+      "docs",
+      "test"
+    ]
+  }
+}
