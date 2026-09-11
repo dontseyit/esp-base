@@ -8,6 +8,7 @@ esp-base is an Arduino library that gives every ESP32 project the same baseline:
 | [Architecture](Architecture.md) | understand the modules, the tasks and the rules they follow |
 | [WiFi](WiFi.md) | know how the device connects, falls back and retries |
 | [Console and API](Console-and-API.md) | use the web console, add commands and HTTP routes |
+| [Security](Security.md) | protect the device and know what stays with your project |
 | [Apps](Apps.md) | build your application on the app framework |
 | [Logging and config](Logging-and-Config.md) | log, persist settings, look up a key or config field |
 | [Development](Development.md) | work on esp-base itself: build, web UI, CI, release |
@@ -29,4 +30,4 @@ flowchart TB
 
 `EspBase` owns every module. You call `base.begin(cfg)` once and `base.loop()` forever; nothing blocks.
 
-Targets: ESP32, ESP32-S3 and ESP32-C3 are hardware tested; ESP32-C6 and ESP32-S2 are build tested. Toolchain: pioarduino 55.03.311 (Arduino core 3.3.11, ESP-IDF 5.5.5). The [README](../../README.md) is the complete reference; this wiki explains how things work.
+Targets: ESP32, ESP32-S3 and ESP32-C3 are hardware tested; ESP32-C6 and ESP32-S2 are build tested. Toolchain: pioarduino 55.03.311 (Arduino core 3.3.11, ESP-IDF 5.5.5). This wiki is the full documentation; the [README](../../README.md) has the overview and a quick start.

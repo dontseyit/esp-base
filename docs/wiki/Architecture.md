@@ -17,6 +17,16 @@
 
 Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.apps()` and `base.ota()`.
 
+`ChipInfo` is usable from project code too:
+
+```cpp
+ChipInfo::cores();      // 1 or 2
+ChipInfo::hasBle();     // SOC_BLE_SUPPORTED
+ChipInfo::hasUsbCdc();  // USB Serial/JTAG or USB OTG present
+ChipInfo::name();       // "esp32s3"
+ChipInfo::appCore();    // core the Arduino loop runs on: 1 on dual core, 0 on single core
+```
+
 ## Tasks and hand-offs
 
 Only the loop task changes library state. The other tasks hand their work over.
@@ -74,3 +84,9 @@ Measured on the bundled example:
 | Web page | about 6 KB gzipped, budget 20 KB |
 | Log ring | 4 KB (`logBufferBytes`) |
 | WebSocket clients | 4 (`maxWsClients`) |
+
+## Design decisions
+
+- The AP is open by default and the console login is optional, so first-time setup needs no password printed on the device. Set `apPassword` and `webPassword` before shipping; see [Security](Security.md).
+- ArduinoJson parses the WebSocket and API input and builds `/api/info`. Hand-rolled parsing would be riskier.
+- Versioning rules are in [Development](Development.md#versioning-and-release).

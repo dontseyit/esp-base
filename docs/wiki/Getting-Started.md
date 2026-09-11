@@ -77,6 +77,20 @@ All config fields are listed in [Logging and config](Logging-and-Config.md#espba
 
 The device writes the other app slot, verifies the image and reboots into it. Uploads take the console password when one is set, otherwise `cfg.otaPassword`. A wrong password is rejected before anything is written.
 
+## Build flags
+
+| Flag | Where | Why |
+| --- | --- | --- |
+| `-DARDUINO_USB_CDC_ON_BOOT=1` | S3, C3, C6 projects | Route `Serial` to the USB port. |
+| `-DARDUINO_USB_MODE=1` | C3, C6 projects | Required with the flag above: those chips only have the USB Serial/JTAG peripheral and their board manifests do not set it. The S3 manifest already does. |
+| `-DCONFIG_ASYNC_TCP_RUNNING_CORE=1` | dual core projects | Pin the async_tcp task to the application core (AsyncTCP default: any core). |
+| `-DCONFIG_ASYNC_TCP_STACK_SIZE=4096` | optional | AsyncTCP defaults to 16 KB. |
+| `-DESPBASE_NO_OTA` | optional | Compile the OTA module out. |
+| `-DESPBASE_LOG_MAX_LEVEL=3` | optional | Compile `LOG_D` out. |
+| `-DFW_VERSION=\"1.2.3\"` | recommended | Firmware version shown by `info` and `/api/info`. |
+
+Projects that want lower network latency can call `WiFi.setSleep(false)` after `begin()`; the library keeps the core's default modem sleep.
+
 ## Next
 
 - Add your own commands and routes: [Console and API](Console-and-API.md).

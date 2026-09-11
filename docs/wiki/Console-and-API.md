@@ -60,20 +60,23 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 
 ## HTTP routes
 
-| Route | Purpose |
+| Route | Description |
 | --- | --- |
-| `GET /` | The console page (gzip, ETag). |
-| `GET /api/info` | Chip, memory, network, versions, reset reason. |
-| `GET /api/log` | Ring buffer as text. |
-| `GET /api/ws-ticket` | Single-use WebSocket ticket. |
-| `GET\|POST\|DELETE /api/wifi` | Stored networks and connection state. |
-| `POST /api/wifi/settings` | Mode and timers. |
-| `GET\|POST /api/wifi/scan` | Scan results, start a scan. |
-| `GET\|POST /api/apps` | App registry, stack and stats; navigation actions. |
-| `POST /update` | Firmware upload. |
+| `GET /` | The console page, `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). |
+| `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `hostname`, `mac`, `wifi{state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`. |
+| `GET /api/log` | The ring buffer as text. |
+| `GET /api/ws-ticket` | `{"ticket":"..."}`, a single-use WebSocket ticket valid for 30 s. |
+| `GET /api/wifi` | `{"mode","state","ssid","ip","rssi","ap":{...},"settings":{"staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"},"maxSlots":5,"networks":[{"slot","ssid","hasPassword"}]}`. |
+| `POST /api/wifi` | `{"ssid","pass","slot"?,"connect"?}` stores (slot 1 by default) and connects. `"connect":false` stores only, in the given slot or the first free one, and the response carries `"slot"`. `{"slot":n}` alone starts a round at that network. 400 on invalid input. |
+| `DELETE /api/wifi?slot=n` | Remove a stored network. |
+| `POST /api/wifi/settings` | Any of `{"mode":"sta\|ap\|apsta","staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"}`, validated, persisted and applied without a reboot. 400 with an `error` on the first invalid field. |
+| `POST /api/wifi/scan` | Start a scan: 202, or 409 when busy. |
+| `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
+| `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions. See [Apps](Apps.md#console-and-api). |
+| `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
 | `GET /ws` | WebSocket. |
 
-Payloads are listed in the [README](../../README.md#http-api).
+Any other path returns 404, except while the AP is up: requests that arrive through the AP interface for a foreign host (the connectivity probes phones and laptops send) are redirected to the portal.
 
 ## WebSocket protocol
 
@@ -89,9 +92,4 @@ A new client first receives the ring buffer, then live lines. A client that fall
 
 ## Security
 
-There is no TLS, so treat the web interface as a LAN service.
-
-- Set `cfg.webPassword`, or `config set web_pass` and reboot. The page, the API and uploads then need HTTP digest auth as user `admin`. Five wrong passwords lock logins for 30 s.
-- Without a password the console is open to the network, but other web sites still cannot reach it: `/api/`, `/ws` and `/update` refuse foreign `Origin` headers, and foreign `Host` names (DNS rebinding).
-- espota uses `cfg.otaPassword`. Uploads through `POST /update` use the console password when one is set, otherwise the OTA password.
-- Set `apPassword` too, and see the [README](../../README.md#security) for what stays with the project: NVS encryption, Secure Boot and the trusted serial console.
+There is no TLS, so treat the web interface as a LAN service. Set `cfg.webPassword` to require HTTP digest auth as user `admin` for the page, the API and uploads. Even without a password, other web sites cannot drive the device. [Security](Security.md) has the details.

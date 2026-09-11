@@ -72,6 +72,6 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 | `httpPort` | `80` | Web console port. |
 | `maxWsClients` | `4` | Console clients before the oldest is dropped. |
 | `webPassword` | `""` | Console, API and upload password (user `admin`), 8 to 63 characters; empty = open. |
-| `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch and password. |
+| `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch. The password protects espota, and `POST /update` while no `webPassword` is set. |
 | `logOutput`, `logBufferBytes`, `logLevel` | `nullptr`, `4096`, `Info` | Log sinks and default level. |
-| `fwVersion` | `FW_VERSION` | Shown by `info` and `/api/info`. |
+| `fwVersion` | `FW_VERSION`, else `"0.0.0"` | Shown by `info` and `/api/info`. Pass `-DFW_VERSION=\"x.y.z\"`. |

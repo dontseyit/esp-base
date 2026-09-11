@@ -56,6 +56,10 @@ Values are stored in milliseconds. With several unreachable networks, the first 
 - A DNS server answers every name with the AP address. Connectivity probes from Android, Apple, Windows and Firefox get a redirect to the portal. Requests addressed to the AP IP are served normally.
 - The chip has one radio. While the station scans or connects, the AP pauses for a second or two and follows the router's channel, so portal clients may drop briefly during retries.
 
+## Status LED
+
+With `cfg.statusLedPin` set, the LED blinks fast while connecting or reconnecting, slowly in AP mode, and briefly every 3 s when connected.
+
 ## From code
 
 ```cpp
@@ -77,7 +81,7 @@ Callbacks run on the loop task. The setters are safe from any task; the state ma
 | --- | --- | --- |
 | Show state and networks | `wifi status`, `wifi list` | `GET /api/wifi` |
 | Set primary and connect | `wifi set <ssid> [pass]` | `POST /api/wifi {"ssid","pass"}` |
-| Add a backup | `wifi add <ssid> [pass]` | `POST /api/wifi {"ssid","pass","connect":false}` |
+| Add a backup (or update a stored password) | `wifi add <ssid> [pass]` | `POST /api/wifi {"ssid","pass","connect":false}` |
 | Remove one | `wifi remove <slot>` | `DELETE /api/wifi?slot=n` |
 | Connect now | `wifi reconnect [slot]` | `POST /api/wifi {"slot":n}` |
 | Mode and timers | `wifi mode <m>`, `config set ap_retry 0` | `POST /api/wifi/settings` |
