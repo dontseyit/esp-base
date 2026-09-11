@@ -5,7 +5,7 @@
   "keywords": "esp32, esp32-s3, esp32-c3, wifi, captive portal, ota, websocket, console, logging",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zor/esp-base.git"
+    "url": "https://github.com/dontseyit/esp-base.git"
   },
   "authors": [
     {
