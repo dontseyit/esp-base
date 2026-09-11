@@ -151,6 +151,10 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   loadSettings();
   loadCredentials();
 
+  // lwIP and the event loop must exist before WebConsole binds its listening
+  // socket in begin(): AsyncTCP asserts on the missing lwIP core lock. A few
+  // ms, no radio; the driver still starts from the first loop() call.
+  Network.begin();
   WiFi.persistent(false);        // credentials live in ConfigStore, not in the SDK's NVS
   WiFi.setAutoReconnect(false);  // reconnects are scheduled here, with backoff
   WiFi.setHostname(_hostname);   // must precede WiFi.mode()

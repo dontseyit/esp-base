@@ -45,7 +45,7 @@ framework = arduino
 lib_compat_mode = strict
 lib_ldf_mode = chain
 lib_deps =
-  https://github.com/<you>/esp-base.git#v1.0.0
+  https://github.com/dontseyit/esp-base.git#v1.0.1
 build_flags =
   -DFW_VERSION=\"1.2.3\"
 board_build.partitions = min_spiffs.csv   ; two 1.9 MB OTA slots
