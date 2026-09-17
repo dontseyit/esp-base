@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-17
+
+### Added
+
+- `WifiManager::onScanDone(cb)`: every scan initiated by `startScan()` concludes within the loop task, while `WiFi.BSSID(i)`, `RSSI(i)`, and other scan accessors remain valid.
+- `startScan(maxMsPerChannel, logResults)`: bounds the time spent on each channel (at most 1500 ms) and keeps a periodic scan out of the log. The defaults keep the previous behaviour.
+
+### Changed
+
+- `startScan()` and `wifi scan` are no longer refused while the radio is off: the radio is powered for that scan only, as a station that never connects, and stopped again when the results are in. The state stays `off`.
+- `startScan()` files a request that the loop task starts, and `setEnabled()` waits for a running scan. A scan is still refused while another scan or a connection attempt is in flight.
+
+### Fixed
+
+- A connection attempt or retry round that began during a scan aborted it, as `esp_wifi_connect()` does. The attempt now waits for the scan.
+- `POST /api/wifi/scan` called the WiFi driver from the web server task, next to the loop task's own driver calls. Scans are started by the loop task only.
+- The release job never ran: it waited for `v*` tags while releases are tagged `X.Y.Z`. It now runs on `X.Y.Z` tags and only attaches the example binaries, so the notes written when publishing a release are kept.
+- README and Getting Started pinned `#v1.0.1`, a tag that does not exist. They pin the current release, and the release steps in Development now include that line.
+
 ## [1.1.0] - 2026-09-17
 
 ### Added

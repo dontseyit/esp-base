@@ -45,7 +45,7 @@ Before a release, check on each tier 1 board: the AP appears when no network is 
 | --- | --- |
 | checks | `build_web.py --check` and the host unit tests |
 | build | all five targets; fails on any compiler warning from `src/` or `examples/` |
-| release | on `v*` tags, a GitHub release with `esp-base-minimal-<env>.bin` for each target |
+| release | on `X.Y.Z` tags, attaches `esp-base-minimal-<env>.bin` for each target to the GitHub release |
 
 Actions are pinned to commit SHAs, the default token is read-only, and PlatformIO and the platform are pinned to fixed versions.
 
@@ -72,4 +72,4 @@ Actions are pinned to commit SHAs, the default token is read-only, and PlatformI
 
 The project uses semantic versioning. Adding a config field with a default, a command, a route or a JSON field is a minor release. Renaming or removing a field, changing a default that alters behaviour, changing a persisted key or the WebSocket message shapes is a major release. Fixes are patch releases.
 
-To release: bump `version` in `library.json` and `ESPBASE_VERSION` in `EspBaseConfig.h`, update `CHANGELOG.md`, then tag `vX.Y.Z`. Consumers pin the tag in `lib_deps`.
+To release: bump `version` in `library.json`, `ESPBASE_VERSION` in `EspBaseConfig.h` and the pinned tag in `README.md` and `Getting-Started.md`, update `CHANGELOG.md`, push, then publish a GitHub release with the new tag `X.Y.Z` (no `v`) on that commit. The tag starts the release job, which attaches the example binaries; the notes written when publishing are kept. Consumers pin the tag in `lib_deps`.

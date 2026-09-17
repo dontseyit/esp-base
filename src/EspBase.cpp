@@ -207,7 +207,7 @@ void EspBase::wifiCommand(const CmdArgs& a, Print& out) {
   } else if (a.is(0, "list")) {
     _wifi.printNetworks(out);
   } else if (a.is(0, "scan")) {
-    out.println(_wifi.startScan() ? "scan started, results appear in the log" : "scan not started (busy, already running or radio off)");
+    out.println(_wifi.startScan() ? "scan started, results appear in the log" : "scan not started (busy or already running)");
   } else if (a.is(0, "set")) {
     if (!a.has(1)) {
       out.println("usage: wifi set <ssid> [password]   (quote names with spaces; stores slot 1 and connects)");

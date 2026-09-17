@@ -1,6 +1,6 @@
 {
   "name": "EspBase",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Baseline for ESP32 Arduino projects: WiFi station with AP fallback and captive portal, browser console with live logs and commands, OTA updates, persistent config and structured logging.",
   "keywords": "esp32, esp32-s3, esp32-c3, wifi, captive portal, ota, websocket, console, logging",
   "repository": {

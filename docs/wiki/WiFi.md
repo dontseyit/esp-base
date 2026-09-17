@@ -59,13 +59,25 @@ Values are stored in milliseconds. With several unreachable networks, the first 
 - A DNS server answers every name with the AP address. Connectivity probes from Android, Apple, Windows and Firefox get a redirect to the portal. Requests addressed to the AP IP are served normally.
 - The chip has one radio. While the station scans or connects, the AP pauses for a second or two and follows the router's channel, so portal clients may drop briefly during retries.
 
+## Scans
+
+`startScan()`, `wifi scan` and `POST /api/wifi/scan` file a request from any task; the loop task starts it. One radio operation runs at a time:
+
+- A scan is refused while another scan or a connection attempt is in flight. One filed just before an attempt begins, or before the driver's first start, waits for that.
+- A connection attempt, a retry round included, waits for a running scan. `esp_wifi_connect()` would abort it.
+- `setEnabled()`, either way, waits for a running scan.
+- While the radio is off, a scan gets the radio for its own duration, as a station that never connects. That is the only case in which a scan powers the radio down again.
+
+Every accepted scan ends in `onScanDone`. AP start and stop are not part of this; the AP pauses while the station scans, as described above.
+
 ## Radio off
 
 `base.wifi().setEnabled(false)` or `wifi off` drops the station and the AP and stops the WiFi driver. It is for a project that needs the one radio for BLE, or the battery for longer.
 
 - The state is `off`. `onDisconnected` fires if the station was connected.
 - The web console, the API, mDNS and OTA are unreachable until the radio is back. Keep a way to turn it on: a key, a timer or the serial console.
-- While off, `wifi set|add|remove|forget` and the settings are stored only, and scans are refused.
+- While off, `wifi set|add|remove|forget` and the settings are stored only.
+- A scan still works, see [Scans](#scans). The state stays `off`.
 - `setEnabled(true)` or `wifi on` starts over as after boot: stored networks first, then the AP fallback.
 - It is not persisted. WiFi is on after every boot.
 
@@ -87,7 +99,14 @@ base.wifi().applySetting("ap_retry", "0", err);   // same validation as the cons
 
 base.wifi().setEnabled(false);                    // radio off, state Off
 base.wifi().setEnabled(true);                     // starts over as after boot
+
+base.wifi().onScanDone([] {                       // the driver still holds the results here
+  for (int i = 0; i < WiFi.scanComplete(); ++i) { /* WiFi.BSSID(i), WiFi.RSSI(i), WiFi.channel(i) */ }
+});
+base.wifi().startScan(60, false);                 // at most 60 ms per channel, nothing logged
 ```
+
+`startScan()` works in every state, the radio being off included. Its defaults are the console's: up to 300 ms per channel, results in the log. Every scan it accepted ends in `onScanDone`, which may start the next one; `WiFi.scanComplete()` is negative in there when the scan failed.
 
 Callbacks run on the loop task. The setters are safe from any task; the state machine applies them in `loop()`.
 

@@ -21,6 +21,9 @@ constexpr uint32_t kMaxStaTimeoutMs = 300000;
 constexpr uint32_t kMaxReconnectTimeoutMs = 3600000;
 constexpr uint32_t kMinApRetryMs = 5000;
 constexpr uint32_t kMaxApRetryMs = 3600000;
+constexpr uint32_t kScanActiveMinMs = 100;       // the core's default wait on every channel
+constexpr uint32_t kScanWaitMs = 250;            // how often a connection attempt looks whether the scan is over
+constexpr uint32_t kMaxScanMsPerChannel = 1500;  // above this a connected station may lose its AP (ESP-IDF)
 
 const char* authName(wifi_auth_mode_t m) {
   switch (m) {
@@ -312,10 +315,6 @@ void WifiManager::enterState(WifiState s) {
 // the radio that is going away; loop() discards them while Off.
 void WifiManager::radioOff() {
   LOG_I("wifi: radio off");
-  if (_scanRunning) {
-    WiFi.scanDelete();
-    _scanRunning = false;
-  }
   disconnectStation();
   _dns.stop();
   if (!WiFi.mode(WIFI_OFF)) {  // stops the driver, tens of ms; netifs and the event hook stay
@@ -360,6 +359,10 @@ void WifiManager::startRound() {
 
 void WifiManager::staConnect() {
   if (!hasCredentials()) {
+    return;
+  }
+  if (_scanPhase == ScanPhase::Running) {
+    scheduleRetry(kScanWaitMs);  // esp_wifi_connect() would abort the scan: the attempt waits for it
     return;
   }
   if (_candIdx >= _candCount) {
@@ -633,7 +636,9 @@ void WifiManager::loop() {
   if (_cfg == nullptr) {
     return;
   }
-  if (_wantEnabled != enabled()) {
+  const bool scanWasActive = _scanPhase != ScanPhase::Idle;
+  serviceScan();
+  if (_wantEnabled != enabled() && _scanPhase != ScanPhase::Running) {  // either way, the switch waits for a running scan
     if (_wantEnabled) {
       radioOn();
     } else {
@@ -641,6 +646,11 @@ void WifiManager::loop() {
     }
   }
   if (_state == WifiState::Off) {
+    // Only a scan can have the driver up in this state: it got the radio for its
+    // own duration, and the radio goes down again when it is over.
+    if (scanWasActive && _scanPhase == ScanPhase::Idle) {
+      WiFi.mode(WIFI_OFF);
+    }
     xQueueReset(_events);
     return;
   }
@@ -724,7 +734,7 @@ void WifiManager::loop() {
       break;
 
     case WifiState::ApFallback:
-      if (!serviceAttempt(now) && !_roundActive && !_staAttemptActive && !_scanRunning && hasCredentials() && _settings.apRetryIntervalMs > 0 &&
+      if (!serviceAttempt(now) && !_roundActive && !_staAttemptActive && hasCredentials() && _settings.apRetryIntervalMs > 0 &&
           timeReached(now, _nextRoundAt)) {
         LOG_I("wifi: retrying stored networks from AP mode");
         startRound();
@@ -740,8 +750,6 @@ void WifiManager::loop() {
     default:
       break;
   }
-
-  pollScan();
 }
 
 // ---- Credentials -----------------------------------------------------------------
@@ -898,33 +906,70 @@ bool WifiManager::applySetting(const char* key, const String& value, String& err
 
 // ---- Scan -----------------------------------------------------------------------
 
-bool WifiManager::startScan() {
-  if (_scanRunning || _state == WifiState::Off) {  // a scan would start the driver behind the state machine
+// One radio operation at a time, and the driver is the loop task's alone: this
+// only files a request, from any task. The mutex settles two tasks asking at once.
+bool WifiManager::startScan(uint32_t maxMsPerChannel, bool logResults) {
+  if (_scanMutex == nullptr || xSemaphoreTake(_scanMutex, portMAX_DELAY) != pdTRUE) {
     return false;
   }
-  const int16_t r = WiFi.scanNetworks(true, true);
+  // Refused rather than queued behind a connection attempt: the caller hears "busy" now.
+  const bool accepted = _scanPhase == ScanPhase::Idle && !_staAttemptActive;
+  if (accepted) {
+    _scanMsPerChannel = std::min(maxMsPerChannel, kMaxScanMsPerChannel);
+    _scanLog = logResults;
+    _scanPhase = ScanPhase::Requested;
+  }
+  xSemaphoreGive(_scanMutex);
+  return accepted;
+}
+
+// Loop task. Starts a filed scan and collects a finished one. A scan filed
+// before the driver's first start, or just before a connection attempt began
+// (the driver would refuse it), waits for that.
+void WifiManager::serviceScan() {
+  if (_scanPhase == ScanPhase::Requested && _state != WifiState::Boot && !_staAttemptActive) {
+    _scanPhase = ScanPhase::Running;
+    if (!beginScan()) {
+      endScan();
+    }
+  }
+  if (_scanPhase == ScanPhase::Running) {
+    pollScan();
+  }
+}
+
+// Where every accepted scan ends. Idle first, so the callback may file the next
+// one; the driver keeps the results until the callback returns.
+void WifiManager::endScan() {
+  _scanPhase = ScanPhase::Idle;
+  notify(_onScanDone);
+  WiFi.scanDelete();
+}
+
+bool WifiManager::beginScan() {
+  // The core waits kScanActiveMinMs on every channel even when nothing answers; a tighter bound lowers that too.
+  WiFi.setScanActiveMinTime(std::min(kScanActiveMinMs, _scanMsPerChannel));
+  // Starts the station by itself when the radio is off. Nothing connects without WiFi.begin().
+  const int16_t r = WiFi.scanNetworks(true, true, false, _scanMsPerChannel);
   if (r == WIFI_SCAN_FAILED) {
-    LOG_W("wifi: scan could not start (busy?)");
+    LOG_W("wifi: scan could not start");
     return false;
   }
-  _scanRunning = true;
-  LOG_I("wifi: scan started");
+  if (_scanLog) {
+    LOG_I("wifi: scan started");
+  }
   return true;
 }
 
 void WifiManager::pollScan() {
-  if (!_scanRunning) {
-    return;
-  }
   const int16_t n = WiFi.scanComplete();
   if (n == WIFI_SCAN_RUNNING) {
     return;
   }
-  _scanRunning = false;
   _scanCompletedAt = millis();
   if (n < 0) {
     LOG_W("wifi: scan failed");
-    WiFi.scanDelete();
+    endScan();
     return;
   }
   std::vector<int> order;
@@ -936,7 +981,11 @@ void WifiManager::pollScan() {
 
   JsonDocument doc;
   JsonArray nets = doc.to<JsonArray>();
-  LOG_I("wifi: scan found %d networks", n);
+  if (_scanLog) {
+    LOG_I("wifi: scan found %d networks", n);
+  } else {
+    LOG_D("wifi: scan found %d networks", n);
+  }
   for (size_t k = 0; k < order.size(); ++k) {
     const int i = order[k];
     const String ssid = WiFi.SSID(i);
@@ -948,14 +997,14 @@ void WifiManager::pollScan() {
     net["rssi"] = rssi;
     net["ch"] = ch;
     net["enc"] = (auth != WIFI_AUTH_OPEN);
-    if (k < kMaxScanLogged) {
+    if (_scanLog && k < kMaxScanLogged) {
       LOG_I("  %4ld dBm ch%-2ld %-9s %s", static_cast<long>(rssi), static_cast<long>(ch), authName(auth),
             ssid.isEmpty() ? "<hidden>" : ssid.c_str());
     }
   }
-  WiFi.scanDelete();
   String json;
   serializeJson(doc, json);
+  endScan();
   if (xSemaphoreTake(_scanMutex, portMAX_DELAY) == pdTRUE) {
     _scanJson = json;
     xSemaphoreGive(_scanMutex);
@@ -1046,7 +1095,7 @@ void WifiManager::printStatus(Print& out) {
   out.printf("timeouts:   attempt %lu s, reconnect %lu s%s, ap retry %s\r\n", static_cast<unsigned long>(_settings.staTimeoutMs / 1000),
              static_cast<unsigned long>(_settings.reconnectTimeoutMs / 1000), _settings.reconnectTimeoutMs == 0 ? " (AP immediately)" : "",
              _settings.apRetryIntervalMs == 0 ? "never" : (String(_settings.apRetryIntervalMs / 1000) + " s").c_str());
-  if (_scanRunning) {
+  if (scanRunning()) {
     out.println("scan:       running");
   }
   out.println("networks:");

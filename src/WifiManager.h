@@ -91,8 +91,8 @@ class WifiManager {
   // ---- Radio. Off drops the station and the AP and stops the WiFi driver, for
   // a project that needs the one radio for BLE or the battery for longer; on
   // starts over as after boot. Not persisted: WiFi is on after every boot.
-  // While off, credentials and settings are stored only and scans are refused.
-  // Callable from any task; applied in loop().
+  // While off, credentials and settings are stored only. Callable from any
+  // task; applied in loop().
   void setEnabled(bool on) { _wantEnabled = on; }
   bool enabled() const { return _state != WifiState::Off; }
 
@@ -101,15 +101,29 @@ class WifiManager {
   // slot keys. Returns false with a message in `error`.
   bool applySetting(const char* key, const String& value, String& error);
 
-  // ---- Scan (asynchronous)
-  bool startScan();
-  bool scanRunning() const { return _scanRunning; }
+  // ---- Scan (asynchronous). One radio operation at a time, arbitrated on the
+  // loop task: startScan() only files a request, from any task, and is refused
+  // while another scan or a connection attempt is in flight. A connection attempt
+  // and setEnabled(), either way, wait for a running scan; nothing cuts one short.
+  // Works in every state: while the radio is off the scan gets it for its own
+  // duration, as a station that never connects, and only then does a scan ever
+  // power the radio down. maxMsPerChannel bounds the time spent on each channel
+  // (0 = driver default, at most 1500); logResults = false keeps a periodic scan
+  // out of the log.
+  static constexpr uint32_t kScanMsPerChannel = 300;
+  bool startScan(uint32_t maxMsPerChannel = kScanMsPerChannel, bool logResults = true);
+  bool scanRunning() const { return _scanPhase != ScanPhase::Idle; }
   String scanResultJson();  // [{"ssid":"x","rssi":-60,"ch":6,"enc":true}, ...] sorted by RSSI
   uint32_t scanCompletedAt() const { return _scanCompletedAt; }
 
   void onConnected(Callback cb) { _onConnected.push_back(std::move(cb)); }
   void onDisconnected(Callback cb) { _onDisconnected.push_back(std::move(cb)); }
   void onApStarted(Callback cb) { _onApStarted.push_back(std::move(cb)); }
+  // Every scan that startScan() accepted ends here, while the driver still
+  // holds the results: WiFi.scanComplete() is the count, negative when the scan
+  // failed, and WiFi.BSSID(i), RSSI(i), channel(i) and SSID(i) are valid until
+  // the callback returns. The callback may call startScan() for the next one.
+  void onScanDone(Callback cb) { _onScanDone.push_back(std::move(cb)); }
 
   void printStatus(Print& out);
   void printNetworks(Print& out);
@@ -119,6 +133,7 @@ class WifiManager {
     int32_t id;
     uint8_t reason;
   };
+  enum class ScanPhase : uint8_t { Idle, Requested, Running };
   struct Candidate {
     uint8_t slot = 0;
     char ssid[33] = {0};
@@ -148,7 +163,10 @@ class WifiManager {
   void startAp();
   void stopAp();
   void startMdns();
+  void serviceScan();
+  bool beginScan();
   void pollScan();
+  void endScan();
   void notify(std::vector<Callback>& list);
   static bool timeReached(uint32_t now, uint32_t at) { return static_cast<int32_t>(now - at) >= 0; }
 
@@ -168,7 +186,7 @@ class WifiManager {
   bool _awaitingDisconnect = false;  // we asked for a disconnect; the event must not count as a failed attempt
   bool _connectCallFailed = false;
   uint32_t _backoffMs = 0;
-  bool _staAttemptActive = false;
+  volatile bool _staAttemptActive = false;  // read by startScan() from other tasks
   uint32_t _attemptStart = 0;
   uint32_t _nextRoundAt = 0;
   bool _apActive = false;
@@ -189,9 +207,12 @@ class WifiManager {
   volatile bool _reconnectRequested = false;
   volatile bool _settingsChanged = false;
   volatile bool _wantEnabled = true;
+  // Idle -> Requested by startScan() under _scanMutex, from any task; every other step by the loop task.
+  volatile ScanPhase _scanPhase = ScanPhase::Idle;
   volatile uint8_t _preferredSlot = 0;
 
-  bool _scanRunning = false;
+  uint32_t _scanMsPerChannel = kScanMsPerChannel;
+  bool _scanLog = true;
   uint32_t _scanCompletedAt = 0;
   String _scanJson;
 
@@ -202,4 +223,5 @@ class WifiManager {
   std::vector<Callback> _onConnected;
   std::vector<Callback> _onDisconnected;
   std::vector<Callback> _onApStarted;
+  std::vector<Callback> _onScanDone;
 };

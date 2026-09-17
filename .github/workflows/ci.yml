@@ -3,7 +3,8 @@ name: ci
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
+    # Release tags are the bare version, X.Y.Z. Publishing a GitHub release creates one.
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
   pull_request:
 
 permissions:
@@ -70,7 +71,7 @@ jobs:
 
   release:
     name: github release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -80,7 +81,11 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # The release is published by hand with its notes, which creates the tag
+      # and starts this run; this only attaches the binaries. Generated notes
+      # would be appended to the ones already there. A tag pushed from git
+      # gets a release without notes.
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: dist/*.bin
-          generate_release_notes: true
+          fail_on_unmatched_files: true
