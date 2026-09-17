@@ -9,6 +9,8 @@
 // (a "round"); hidden networks work because no scan is involved. When a round
 // fails the AP comes up and rounds repeat every apRetryIntervalMs.
 // Modes: Sta (above), Ap (AP only, station never used), ApSta (AP always on).
+// setEnabled(false) stops the radio from any state (Off); setEnabled(true)
+// starts over from Boot.
 //
 // Driven by WiFi.onEvent(); the event task only queues events, the state
 // machine runs from loop(). Nothing here blocks.
@@ -28,7 +30,7 @@
 #include "ConfigStore.h"
 #include "EspBaseConfig.h"
 
-enum class WifiState : uint8_t { Boot, StaConnecting, StaConnected, StaReconnecting, ApFallback, ApOnly };
+enum class WifiState : uint8_t { Boot, StaConnecting, StaConnected, StaReconnecting, ApFallback, ApOnly, Off };
 
 class WifiManager {
  public:
@@ -86,6 +88,14 @@ class WifiManager {
   // Starts a new round now (slot 0 = from the first stored network).
   void reconnect(uint8_t slot = 0);
 
+  // ---- Radio. Off drops the station and the AP and stops the WiFi driver, for
+  // a project that needs the one radio for BLE or the battery for longer; on
+  // starts over as after boot. Not persisted: WiFi is on after every boot.
+  // While off, credentials and settings are stored only and scans are refused.
+  // Callable from any task; applied in loop().
+  void setEnabled(bool on) { _wantEnabled = on; }
+  bool enabled() const { return _state != WifiState::Off; }
+
   // ---- Settings: validates, persists (key = EspBaseKeys::*) and applies from
   // loop(). Handles wifi_mode, sta_timeout, reconn_timeout, ap_retry and the
   // slot keys. Returns false with a message in `error`.
@@ -119,6 +129,8 @@ class WifiManager {
   void handleEvent(const Event& e);
   void enterState(WifiState s);
   void startDriver();
+  void radioOff();
+  void radioOn();
   void loadSettings();
   void applySettingsNow();
   void loadCredentials();
@@ -176,6 +188,7 @@ class WifiManager {
   volatile bool _forgetRequested = false;
   volatile bool _reconnectRequested = false;
   volatile bool _settingsChanged = false;
+  volatile bool _wantEnabled = true;
   volatile uint8_t _preferredSlot = 0;
 
   bool _scanRunning = false;

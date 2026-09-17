@@ -121,6 +121,9 @@ void EspBase::updateStatusLed() {
       period = 1000;  // slow blink
       onMs = 500;
       break;
+    case WifiState::Off:
+      onMs = 0;  // dark
+      break;
     default:
       break;
   }
@@ -168,7 +171,7 @@ void EspBase::registerBuiltins() {
       "erase WiFi credentials and settings, then reboot");
 
   _console.addCommand(
-      "wifi", [this](const CmdArgs& a, Print& out) { wifiCommand(a, out); }, "wifi status|list|scan|set|add|remove|forget|reconnect|mode");
+      "wifi", [this](const CmdArgs& a, Print& out) { wifiCommand(a, out); }, "wifi status|list|scan|set|add|remove|forget|reconnect|mode|on|off");
 
   _console.addCommand(
       "config", [this](const CmdArgs& a, Print& out) { configCommand(a, out); }, "config list|get <key>|set <key> <value>");
@@ -204,7 +207,7 @@ void EspBase::wifiCommand(const CmdArgs& a, Print& out) {
   } else if (a.is(0, "list")) {
     _wifi.printNetworks(out);
   } else if (a.is(0, "scan")) {
-    out.println(_wifi.startScan() ? "scan started, results appear in the log" : "scan not started (busy or already running)");
+    out.println(_wifi.startScan() ? "scan started, results appear in the log" : "scan not started (busy, already running or radio off)");
   } else if (a.is(0, "set")) {
     if (!a.has(1)) {
       out.println("usage: wifi set <ssid> [password]   (quote names with spaces; stores slot 1 and connects)");
@@ -248,8 +251,15 @@ void EspBase::wifiCommand(const CmdArgs& a, Print& out) {
     } else {
       out.println(err);
     }
+  } else if (a.is(0, "off")) {
+    // Over the network this is the last thing the console hears: say so first.
+    out.println("radio off until \"wifi on\" (serial) or a reboot; this console goes with it");
+    _wifi.setEnabled(false);
+  } else if (a.is(0, "on")) {
+    _wifi.setEnabled(true);
+    out.println("radio on");
   } else {
-    out.println("usage: wifi status|list|scan|set <ssid> [pass]|add <ssid> [pass]|remove <slot>|forget|reconnect [slot]|mode [sta|ap|apsta]");
+    out.println("usage: wifi status|list|scan|set <ssid> [pass]|add <ssid> [pass]|remove <slot>|forget|reconnect [slot]|mode [sta|ap|apsta]|on|off");
   }
 }
 

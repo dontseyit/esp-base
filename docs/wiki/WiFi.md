@@ -28,7 +28,10 @@ stateDiagram-v2
   StaReconnecting --> ApFallback: reconn_timeout expired
   ApFallback --> StaConnected: retry round succeeded
   ApOnly --> StaConnecting: mode changed to sta or apsta
+  Off --> Boot: setEnabled(true)
 ```
+
+`setEnabled(false)` leads to `Off` from every state.
 
 The state machine is event driven. WiFi events are queued and handled in `loop()`; it never polls `WiFi.status()`.
 
@@ -56,9 +59,19 @@ Values are stored in milliseconds. With several unreachable networks, the first 
 - A DNS server answers every name with the AP address. Connectivity probes from Android, Apple, Windows and Firefox get a redirect to the portal. Requests addressed to the AP IP are served normally.
 - The chip has one radio. While the station scans or connects, the AP pauses for a second or two and follows the router's channel, so portal clients may drop briefly during retries.
 
+## Radio off
+
+`base.wifi().setEnabled(false)` or `wifi off` drops the station and the AP and stops the WiFi driver. It is for a project that needs the one radio for BLE, or the battery for longer.
+
+- The state is `off`. `onDisconnected` fires if the station was connected.
+- The web console, the API, mDNS and OTA are unreachable until the radio is back. Keep a way to turn it on: a key, a timer or the serial console.
+- While off, `wifi set|add|remove|forget` and the settings are stored only, and scans are refused.
+- `setEnabled(true)` or `wifi on` starts over as after boot: stored networks first, then the AP fallback.
+- It is not persisted. WiFi is on after every boot.
+
 ## Status LED
 
-With `cfg.statusLedPin` set, the LED blinks fast while connecting or reconnecting, slowly in AP mode, and briefly every 3 s when connected.
+With `cfg.statusLedPin` set, the LED blinks fast while connecting or reconnecting, slowly in AP mode, and briefly every 3 s when connected. It stays dark while the radio is off.
 
 ## From code
 
@@ -71,6 +84,9 @@ base.wifi().setCredentials("Home", "secret");     // slot 1, connect now
 base.wifi().addCredentials("Office", "secret2");  // first free slot, returns the slot or 0
 String err;
 base.wifi().applySetting("ap_retry", "0", err);   // same validation as the console
+
+base.wifi().setEnabled(false);                    // radio off, state Off
+base.wifi().setEnabled(true);                     // starts over as after boot
 ```
 
 Callbacks run on the loop task. The setters are safe from any task; the state machine applies them in `loop()`.
@@ -87,3 +103,4 @@ Callbacks run on the loop task. The setters are safe from any task; the state ma
 | Mode and timers | `wifi mode <m>`, `config set ap_retry 0` | `POST /api/wifi/settings` |
 | Remove all | `wifi forget` | none |
 | Scan | `wifi scan` | `POST` then `GET /api/wifi/scan` |
+| Radio off and on | `wifi off`, `wifi on` | none |

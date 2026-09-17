@@ -89,6 +89,7 @@ const char* WifiManager::stateName(WifiState s) {
     case WifiState::StaReconnecting: return "sta_reconnecting";
     case WifiState::ApFallback: return "ap_fallback";
     case WifiState::ApOnly: return "ap_only";
+    case WifiState::Off: return "off";
     default: return "?";
   }
 }
@@ -298,12 +299,47 @@ void WifiManager::enterState(WifiState s) {
       }
       break;
     case WifiState::ApOnly:
+    case WifiState::Off:
       _roundActive = false;
       _staAttemptActive = false;
       break;
     default:
       break;
   }
+}
+
+// Stops the driver from whatever state it is in. Events still queued belong to
+// the radio that is going away; loop() discards them while Off.
+void WifiManager::radioOff() {
+  LOG_I("wifi: radio off");
+  if (_scanRunning) {
+    WiFi.scanDelete();
+    _scanRunning = false;
+  }
+  disconnectStation();
+  _dns.stop();
+  if (!WiFi.mode(WIFI_OFF)) {  // stops the driver, tens of ms; netifs and the event hook stay
+    LOG_W("wifi: the driver did not stop");
+  }
+  _apActive = false;
+  _apStopAt = 0;
+  _awaitingDisconnect = false;
+  _connectCallFailed = false;
+  enterState(WifiState::Off);
+}
+
+// Back to Boot with whatever was stored while off; startDriver() runs from the same loop() call.
+void WifiManager::radioOn() {
+  LOG_I("wifi: radio on");
+  _credentialsChanged = false;
+  _listChanged = false;
+  _forgetRequested = false;
+  _reconnectRequested = false;
+  _settingsChanged = false;
+  _preferredSlot = 0;
+  loadSettings();
+  loadCredentials();
+  _state = WifiState::Boot;
 }
 
 bool WifiManager::nextCandidate() {
@@ -597,6 +633,17 @@ void WifiManager::loop() {
   if (_cfg == nullptr) {
     return;
   }
+  if (_wantEnabled != enabled()) {
+    if (_wantEnabled) {
+      radioOn();
+    } else {
+      radioOff();
+    }
+  }
+  if (_state == WifiState::Off) {
+    xQueueReset(_events);
+    return;
+  }
   if (_state == WifiState::Boot) {
     startDriver();
   }
@@ -852,7 +899,7 @@ bool WifiManager::applySetting(const char* key, const String& value, String& err
 // ---- Scan -----------------------------------------------------------------------
 
 bool WifiManager::startScan() {
-  if (_scanRunning) {
+  if (_scanRunning || _state == WifiState::Off) {  // a scan would start the driver behind the state machine
     return false;
   }
   const int16_t r = WiFi.scanNetworks(true, true);

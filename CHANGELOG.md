@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-17
+
+### Added
+
+- `WifiManager::setEnabled(bool)` and `enabled()`, state `WifiState::Off` (`"off"` in `/api/info` and `wifi status`), console `wifi off` and `wifi on`. Off drops the station and the AP and stops the WiFi driver from any state, for projects that need the radio for BLE or the battery for longer; on starts over as after boot. Not persisted. While off, credentials and settings are stored only, `startScan()` returns false and the status LED stays dark.
+
 ## [1.0.1] - 2026-09-11
 
 ### Fixed
