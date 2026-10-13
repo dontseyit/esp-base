@@ -10,6 +10,11 @@ A reusable Arduino library that gives every ESP32 project the same baseline out 
 
 The same code builds for ESP32, ESP32-S3 and ESP32-C3 (hardware tested) and for ESP32-C6 and ESP32-S2 (build tested). Pins, display, input, partitions and USB flags stay in your project.
 
+<!-- Ko-fi badge -->
+<a href="https://ko-fi.com/dontseyit">
+  <img src="https://img.shields.io/badge/ko--fi%20-Buy%20me%20a%20coffee-ff5e5b?logo=ko-fi&logoColor=white" alt="Ko-fi">
+</a>
+
 ## Documentation
 
 The [wiki](docs/wiki/Home.md) explains how esp-base works and how to build on it.
