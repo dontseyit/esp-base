@@ -19,7 +19,7 @@
 #include "EspBaseConfig.h"
 #include "Log.h"
 
-class Settings;
+class ProjectSettings;
 class WifiManager;
 
 // Parsed command arguments (everything after the command name).
@@ -70,7 +70,7 @@ class WebConsole {
   // password: console password (HTTP digest auth, user "admin"); empty = open console.
   void begin(const EspBaseConfig& cfg, WifiManager& wifi, const String& password);
   // The project's settings, served at /api/settings. Call before begin().
-  void attachSettings(Settings& settings) { _settings = &settings; }
+  void attachSettings(ProjectSettings& settings) { _settings = &settings; }
   void loop();
 
   // Valid after begin().
@@ -141,7 +141,7 @@ class WebConsole {
 
   const EspBaseConfig* _cfg = nullptr;
   WifiManager* _wifi = nullptr;
-  Settings* _settings = nullptr;
+  ProjectSettings* _settings = nullptr;
   AsyncWebServer* _server = nullptr;
   AsyncWebSocket _ws;
   std::vector<Command> _commands;

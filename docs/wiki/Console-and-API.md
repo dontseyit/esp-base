@@ -4,7 +4,7 @@
 
 ## The web console
 
-Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 6 KB.
+Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 8 KB.
 
 - **Console**: live log with level and text filter, command line with history (arrow keys).
 - **WiFi**: stored networks, primary and backup entry, scan, mode and timers.

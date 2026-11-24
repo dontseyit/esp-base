@@ -8,18 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- `Settings`: a project's own settings. `base.settings().add(def)` defines one (`Text`, `Secret` or `Choice`, with a default, a length limit and an optional check of your own); the values are stored through `ConfigStore`. `get`, `set`, `clear` and `onChange` on the loop task, `queue` for changes that arrive on another task.
+- `ProjectSettings`, reached through `base.settings()`: a project's own settings. `base.settings().add(def)` defines one (`Text`, `Secret` or `Choice`, with a default, a length limit and an optional check of your own); the values are stored through `ConfigStore`. `get`, `set`, `clear` and `onChange` on the loop task, `queue` for changes that arrive on another task.
 - `GET /api/settings` and `POST /api/settings`, and a **Settings** tab on the page, which is there only when a project defines settings. A secret is write-only: the page, the API and the console tell only whether it is set.
 - The `settings` command; `config get|set|list` accept a project's keys.
 - `EspBaseConfig::apLandingTab`: the tab the page opens on while the device is its own access point. `/api/info` carries it as `landing`.
 - After a network is saved over the access point, the page says that the access point closes and where the device will be found.
 - ESP32-P4 with hosted WiFi (an ESP32-C6 over SDIO) as a build target, `esp32p4`. It has run on an M5Stack Tab5.
+- `ChipInfo::hasOwnWifi()`: false where WiFi is a second chip.
+- The browser no longer keeps `config set` of a project's secret setting in its stored command history.
 
 ### Fixed
 
 - The captive DNS did not start on a chip without WiFi of its own (`wifi: captive DNS failed to start`), so the portal never opened by itself: the core compiles the argument-less `DNSServer::start()` as a failure there. The explicit form is used on every chip.
-- On such a chip every access point was named `<prefix>-0000`, because the address was read before the driver existed. The name is now finished when the driver starts; `apSsid()` returns the prefix alone until the first `loop()`.
-- `onApStarted` ran twice on such a chip, because hosted WiFi restarts the access point while it is being configured. The access point is announced once its events have been handled.
+- On such a chip every access point was named `<prefix>-0000`, because the address was read before the driver existed. There the name is now finished when the driver starts, and `apSsid()` returns the prefix alone until the first `loop()`. On a chip with WiFi of its own nothing changes: the name is complete after `begin()`.
+- `onApStarted` ran twice on such a chip, because hosted WiFi restarts the access point while it is being configured. The notice is now given once for each time the library brings the access point up.
 
 ## [1.2.0] - 2026-09-17
 

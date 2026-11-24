@@ -8,7 +8,7 @@
 
 #include "ChipInfo.h"
 #include "WebGuard.h"
-#include "Settings.h"
+#include "ProjectSettings.h"
 #include "WifiManager.h"
 #include "web/index_html_gz.h"
 
@@ -176,7 +176,7 @@ void WebConsole::setupRoutes() {
     request->send(response);
   });
 
-  // The project's own settings (Settings.h). A Secret never carries a value.
+  // The project's own settings (ProjectSettings.h). A Secret never carries a value.
   s.on("/api/settings", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
     JsonArray list = response->getRoot().to<JsonObject>()["settings"].to<JsonArray>();
@@ -218,9 +218,9 @@ void WebConsole::setupRoutes() {
   // untouched secret field empty). This runs on the web server's task: it only
   // checks, then hands the changes to the loop task.
   s.on("/api/settings", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
-    const char* keys[Settings::kMaxSettings];
-    String values[Settings::kMaxSettings];
-    bool nulls[Settings::kMaxSettings];
+    const char* keys[ProjectSettings::kMaxSettings];
+    String values[ProjectSettings::kMaxSettings];
+    bool nulls[ProjectSettings::kMaxSettings];
     size_t n = 0;
     String err;
     if (_settings == nullptr || !json.is<JsonObject>()) {
@@ -228,7 +228,7 @@ void WebConsole::setupRoutes() {
     } else {
       for (JsonPair p : json.as<JsonObject>()) {
         const SettingDef* def = _settings->find(p.key().c_str());
-        if (def == nullptr || n >= Settings::kMaxSettings) {
+        if (def == nullptr || n >= ProjectSettings::kMaxSettings) {
           err = String(p.key().c_str()) + ": unknown setting";
           break;
         }

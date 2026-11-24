@@ -30,4 +30,4 @@ flowchart TB
 
 `EspBase` owns every module. You call `base.begin(cfg)` once and `base.loop()` forever; nothing blocks.
 
-Targets: ESP32, ESP32-S3 and ESP32-C3 are hardware tested; ESP32-C6 and ESP32-S2 are build tested. Toolchain: pioarduino 55.03.311 (Arduino core 3.3.11, ESP-IDF 5.5.5). This wiki is the full documentation; the [README](../../README.md) has the overview and a quick start.
+Targets: ESP32, ESP32-S3 and ESP32-C3 are hardware tested; ESP32-C6, ESP32-S2 and ESP32-P4 (WiFi through a second chip) are build tested. Toolchain: pioarduino 55.03.311 (Arduino core 3.3.11, ESP-IDF 5.5.5). This wiki is the full documentation; the [README](../../README.md) has the overview and a quick start.

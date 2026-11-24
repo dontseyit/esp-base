@@ -15,7 +15,7 @@
 #include "ConfigStore.h"
 #include "EspBaseConfig.h"
 #include "Log.h"
-#include "Settings.h"
+#include "ProjectSettings.h"
 #include "WebConsole.h"
 #include "WifiManager.h"
 #ifndef ESPBASE_NO_OTA
@@ -33,7 +33,7 @@ class EspBase {
   AsyncWebServer& web() { return _console.server(); }  // valid after begin()
   WifiManager& wifi() { return _wifi; }
   ConfigStore& config() { return _store; }
-  Settings& settings() { return _settings; }  // the project's own settings; add them after begin()
+  ProjectSettings& settings() { return _settings; }  // the project's own settings; add them after begin()
   AppManager& apps() { return _apps; }  // call apps().start(...) after begin() to run the registered apps
 #ifndef ESPBASE_NO_OTA
   OtaUpdater& ota() { return _ota; }
@@ -56,7 +56,7 @@ class EspBase {
 
   EspBaseConfig _cfg;
   ConfigStore _store;
-  Settings _settings;
+  ProjectSettings _settings;
   WifiManager _wifi;
   WebConsole _console;
   AppManager _apps;

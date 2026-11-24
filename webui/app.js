@@ -82,7 +82,9 @@
 
   // ---- command input with history -------------------------------------
   // Commands carrying passwords stay in this session's history but never reach localStorage.
+  // So do "config set" commands for the project's secret settings.
   const SECRET = /^\s*(wifi\s+(set|add)|config\s+set\s+\S*pass)\b/i;
+  const isSecretCmd = (c) => SECRET.test(c) || secretKeys.some((k) => new RegExp('^\\s*config\\s+set\\s+' + k + '\\b', 'i').test(c));
   let hist = [];
   try { hist = JSON.parse(load('hist', '[]')); } catch (e) { hist = []; }
   let hi = hist.length;
@@ -100,7 +102,7 @@
     if (hist[hist.length - 1] !== c) hist.push(c);
     if (hist.length > 50) hist.shift();
     hi = hist.length;
-    save('hist', JSON.stringify(hist.filter((h) => !SECRET.test(h))));
+    save('hist', JSON.stringify(hist.filter((h) => !isSecretCmd(h))));
   });
   cmdEl.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp') {
@@ -220,14 +222,16 @@
   async function saveNetwork(connect) {
     if (!$('#ssid').value) { msg('#wifimsg', 'enter a network name', true); return; }
     const body = { ssid: $('#ssid').value, pass: $('#pass').value, connect };
+    // Over the device's own access point this page is about to go: settings typed and not saved would go with it.
+    if (connect && viaClosingAp() && settingsDirty()) { msg('#wifimsg', 'Settings has unsaved changes. Save them first.', true); return; }
     if (connect) body.slot = 1;
     try {
       const j = await post('/api/wifi', body);
       if (!j.ok) { msg('#wifimsg', j.error || 'rejected', true); return; }
-      // On the device's own access point the page is about to lose it: say where the device will be.
-      const viaAp = lastInfo && lastInfo.wifi.ap;
+      // Over the device's own access point the page is about to lose it: say where the device will be, and what a wrong password looks like.
       msg('#wifimsg', !connect ? 'stored as backup in slot ' + j.slot
-        : viaAp ? 'Joining ' + body.ssid + '. This access point closes once it connects. Then open http://' + lastInfo.hostname + '.local/ on that network.'
+        : viaClosingAp() ? 'Joining ' + body.ssid + '. When it connects, the ' + lastInfo.wifi.ap.ssid + ' network disappears: put your phone back on ' + body.ssid
+          + ' and open http://' + lastInfo.hostname + '.local/. If this page is still here after a minute, check the password and save again.'
         : 'saved as primary, connecting — progress is in the console log');
       $('#pass').value = '';
       loadWifi();
@@ -251,69 +255,108 @@
   });
 
   // ---- settings ----------------------------------------------------------
-  // The project's own settings (/api/settings). Labels and values go in as
-  // text, never as markup. A secret's value never reaches the page: its field
-  // is empty and only says whether one is set.
-  let shown = {};  // key -> the value its field was given, so only changes are posted
-  const settingsDirty = () => [...$('#settingsform').querySelectorAll('[name]')].some((f) => f.value !== shown[f.name]);
+  // The project's own settings (/api/settings). Labels, hints and values go in
+  // as text, never as markup. A secret's value never reaches the page: its
+  // field is empty and only says whether one is saved.
+  let shown = {};       // key -> the value its field was given, so only changes are posted
+  let secretKeys = [];  // for the console's history, which must not keep them
+  let saving = false;
+  const settingsFields = () => [...$('#settingsform').querySelectorAll('[name]')];
+  const settingsDirty = () => settingsFields().some((f) => f.value !== shown[f.name]);
+  // True while the page is served over the device's own access point and that
+  // access point closes as soon as the station connects (mode "sta").
+  const viaClosingAp = () => !!(lastInfo && lastInfo.wifi.ap && lastInfo.wifi.mode === 'sta');
   async function loadSettings() {
     let r;
     try { r = await api('/api/settings'); } catch (e) { return; }
     const list = r.settings || [];
     document.querySelector('.tab[data-panel="settings"]').hidden = !list.length;
+    secretKeys = list.filter((s) => s.kind === 'secret').map((s) => s.key);
+    if (settingsDirty()) return;  // never write over what was typed and not saved
     const form = $('#settingsform');
     const row = form.querySelector('.row');
-    form.querySelectorAll('label').forEach((l) => l.remove());
-    shown = {};
-    list.forEach((s) => {
-      const label = document.createElement('label');
-      label.textContent = s.label;
-      let f;
-      if (s.kind === 'choice') {
-        f = document.createElement('select');
-        (s.choices || []).forEach((c) => {
-          const o = document.createElement('option');
-          o.value = c;
-          o.textContent = c;
-          f.appendChild(o);
-        });
-        f.value = s.value;
-      } else {
-        f = document.createElement('input');
-        f.maxLength = s.maxLen;
-        if (s.kind === 'secret') {
-          f.type = 'password';
-          f.autocomplete = 'off';
-          f.placeholder = s.set ? '(set)' : '(not set)';
+    // The fields are built once and then updated in place, so the cursor (and
+    // a phone's keyboard) stays where it is when the page reads again.
+    if (settingsFields().map((f) => f.name).join() !== list.map((s) => s.key).join()) {
+      form.querySelectorAll('label').forEach((l) => l.remove());
+      list.forEach((s) => {
+        const label = document.createElement('label');
+        label.textContent = s.label;
+        let f;
+        if (s.kind === 'choice') {
+          f = document.createElement('select');
+          (s.choices || []).forEach((c) => {
+            const o = document.createElement('option');
+            o.value = c;
+            o.textContent = c;
+            f.appendChild(o);
+          });
         } else {
-          f.value = s.value;
-          if (s.hint) f.placeholder = s.hint;
+          f = document.createElement('input');
+          f.maxLength = s.maxLen;
+          if (s.kind === 'secret') {
+            f.type = 'password';
+            f.autocomplete = 'off';
+          }
         }
+        f.name = s.key;
+        label.appendChild(f);
+        if (s.hint) {
+          const h = document.createElement('span');
+          h.className = 'hint';
+          h.textContent = s.hint;
+          label.appendChild(h);
+        }
+        form.insertBefore(label, row);
+      });
+    }
+    list.forEach((s) => {
+      const f = form.querySelector('[name="' + s.key + '"]');
+      if (s.kind === 'secret') {
+        f.value = '';
+        f.placeholder = s.set ? 'saved, type to replace' : 'not set yet';
+      } else {
+        f.value = s.value;
       }
-      f.name = s.key;
       shown[s.key] = f.value;
-      label.appendChild(f);
-      form.insertBefore(label, row);
     });
   }
+  $('#settingsform').addEventListener('input', () => msg('#settingsmsg', ''));
   $('#settingsform').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (saving) return;
+    const fields = settingsFields().filter((f) => f.value !== shown[f.name]);
+    if (!fields.length) { msg('#settingsmsg', 'Nothing to save.'); return; }
     const body = {};
-    const fields = [...$('#settingsform').querySelectorAll('[name]')].filter((f) => f.value !== shown[f.name]);
     fields.forEach((f) => { body[f.name] = f.value; });
-    if (!fields.length) { msg('#settingsmsg', 'nothing changed'); return; }
+    const btn = $('#settingsform button[type="submit"]');
+    saving = true;
+    btn.disabled = true;
+    msg('#settingsmsg', 'Saving\u2026');
     try {
       const j = await post('/api/settings', body);
-      if (!j.ok) { msg('#settingsmsg', j.error || 'rejected', true); return; }
+      if (!j.ok) {
+        // The device answers "<key>: <reason>": say the field's label and go to it.
+        const err = j.error || 'rejected';
+        const f = settingsFields().find((x) => err.startsWith(x.name + ': '));
+        msg('#settingsmsg', f ? f.parentNode.firstChild.textContent + err.slice(f.name.length) : err, true);
+        if (f) f.focus();
+        return;
+      }
       fields.forEach((f) => {
-        if (f.type === 'password') { f.placeholder = '(set)'; f.value = ''; }
+        if (f.type === 'password') { f.placeholder = 'saved, type to replace'; f.value = ''; }
         shown[f.name] = f.value;
       });
-      msg('#settingsmsg', 'saved');
+      msg('#settingsmsg', viaClosingAp() ? 'Saved. Next: open the WiFi tab and add your home network.' : 'Saved.');
       // The device applies a change a moment later; then show what it holds
-      // (a cleared field falls back to its default), unless typing went on.
-      setTimeout(() => { if (!settingsDirty()) loadSettings(); }, 700);
-    } catch (err) { msg('#settingsmsg', 'request failed', true); }
+      // (a cleared field falls back to its default).
+      setTimeout(loadSettings, 700);
+    } catch (err) {
+      msg('#settingsmsg', 'Could not reach the device. Try again.', true);
+    } finally {
+      saving = false;
+      btn.disabled = false;
+    }
   });
 
   // ---- ota --------------------------------------------------------------

@@ -1,4 +1,5 @@
-// Settings: a project's own settings, beside the library's.
+// ProjectSettings: a project's own settings, beside the library's. Reached
+// through base.settings().
 //
 // The project names them once, in setup() after EspBase::begin():
 //
@@ -36,7 +37,7 @@ struct SettingDef {
   bool (*validate)(const String& value, String& err) = nullptr;
 };
 
-class Settings {
+class ProjectSettings {
  public:
   static constexpr size_t kMaxSettings = 24;
   static constexpr size_t kMaxQueued = 8;  // requests waiting for loop()

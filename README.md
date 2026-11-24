@@ -99,7 +99,7 @@ The web interface has no TLS. Set `webPassword`, `otaPassword` and `apPassword` 
 
 ```sh
 python tools/build_web.py --check   # generated web header matches webui/
-pio run                             # tier 1 envs; -e esp32c6 -e esp32s2 for tier 2
+pio run                             # tier 1 envs; -e esp32c6 -e esp32s2 -e esp32p4 for tier 2
 pio test -e native                  # host unit tests
 ```
 

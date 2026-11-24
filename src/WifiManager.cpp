@@ -2,11 +2,13 @@
 
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
+#include <esp_mac.h>
 #include <esp_wifi.h>
 #include <string.h>
 
 #include <algorithm>
 
+#include "ChipInfo.h"
 #include "Log.h"
 #include "WifiNaming.h"
 
@@ -142,10 +144,19 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   }
   strncpy(_hostname, host.c_str(), sizeof(_hostname) - 1);
 
-  // The prefix alone until the driver has started: only then is there an
-  // address to finish the name with (see nameAp()).
-  snprintf(_apSsid, sizeof(_apSsid), "%.27s", cfg.apSsidPrefix.c_str());
-  _apNamed = false;
+  // The AP's name ends in the last two bytes of the station address. A chip
+  // with WiFi of its own has that address now, and the name is complete after
+  // begin() as in every release. Where WiFi is a second chip there is no
+  // address before the driver has started: the name stays the prefix alone
+  // until nameAp() finishes it.
+  uint8_t mac[6] = {0};
+  _apNamed = ChipInfo::hasOwnWifi();
+  if (_apNamed) {
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    WifiNaming::apSsid(_apSsid, sizeof(_apSsid), cfg.apSsidPrefix.c_str(), mac);
+  } else {
+    snprintf(_apSsid, sizeof(_apSsid), "%.27s", cfg.apSsidPrefix.c_str());
+  }
 
   String apPass = store.getString(EspBaseKeys::ApPass, cfg.apPassword);
   if (passError(apPass) != nullptr) {
@@ -166,7 +177,12 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   WiFi.setHostname(_hostname);   // must precede WiFi.mode()
   WiFi.onEvent([this](arduino_event_id_t id, arduino_event_info_t info) { queueEvent(id, info); });
 
-  LOG_I("wifi: hostname %s, mode %s, %u stored network(s)", _hostname, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  if (_apNamed) {
+    LOG_I("wifi: hostname %s, mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s, mode %s, %u stored network(s)", _hostname, mac[0], mac[1], mac[2],
+          mac[3], mac[4], mac[5], _apSsid, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  } else {
+    LOG_I("wifi: hostname %s, mode %s, %u stored network(s)", _hostname, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  }
   LOG_D("wifi: sta timeout %lu ms, reconnect timeout %lu ms, ap retry %lu ms", static_cast<unsigned long>(_settings.staTimeoutMs),
         static_cast<unsigned long>(_settings.reconnectTimeoutMs), static_cast<unsigned long>(_settings.apRetryIntervalMs));
   // The driver starts from the first loop() call (see startDriver()), which
@@ -323,6 +339,7 @@ void WifiManager::radioOff() {
     LOG_W("wifi: the driver did not stop");
   }
   _apActive = false;
+  _apNotice.takenDown();
   _apStopAt = 0;
   _awaitingDisconnect = false;
   _connectCallFailed = false;
@@ -468,11 +485,11 @@ void WifiManager::attemptFailed(const char* why) {
   }
 }
 
-// Finishes the AP's name with the station address, once. It needs the driver:
-// read before that (as begin() used to), the address of a chip whose Wi-Fi is
-// a second chip is all zeros, and every such device was named "...-0000". The
-// driver is asked, not the netif: WiFi.macAddress() is still zeros right
-// after WiFi.mode() on such a chip.
+// Finishes the AP's name where begin() could not (ChipInfo::hasOwnWifi() is
+// false): on a chip whose WiFi is a second chip the address read in begin()
+// is all zeros, and every such device was named "...-0000". It needs the
+// driver, and the driver is asked, not the netif: WiFi.macAddress() is still
+// zeros right after WiFi.mode() there.
 void WifiManager::nameAp() {
   if (_apNamed) {
     return;
@@ -509,6 +526,7 @@ void WifiManager::stopAp() {
   WiFi.softAPdisconnect(false);
   WiFi.mode(WIFI_STA);
   _apActive = false;
+  _apNotice.takenDown();
 }
 
 void WifiManager::startMdns() {
@@ -590,7 +608,8 @@ void WifiManager::handleEvent(const Event& e) {
     }
 
     case ARDUINO_EVENT_WIFI_AP_START:
-      _apActive = true;  // announced by loop(), see _apAnnounced
+      _apActive = true;
+      _apNotice.started();  // announced by loop(), see ApNotice.h
       if (_state == WifiState::StaConnected && !_apPersistent && _apStopAt == 0) {
         _apStopAt = millis() + kApGraceAfterStaMs;  // STA won the race, AP is not needed
       }
@@ -607,6 +626,7 @@ void WifiManager::handleEvent(const Event& e) {
 
     case ARDUINO_EVENT_WIFI_AP_STOP:
       _apActive = false;
+      _apNotice.stopped();
       _dns.stop();
       break;
 
@@ -684,15 +704,12 @@ void WifiManager::loop() {
   while (_events != nullptr && xQueueReceive(_events, &e, 0) == pdTRUE) {
     handleEvent(e);
   }
-  // The AP is announced here, once the queue is empty, not per start event:
-  // hosted Wi-Fi restarts the AP while softAP() configures it and sends
-  // start, stop, start, which gave two notices for one AP.
-  if (_apActive != _apAnnounced) {
-    _apAnnounced = _apActive;
-    if (_apActive) {
-      LOG_I("wifi: AP \"%s\" up at %s (%s)", _apSsid, WiFi.softAPIP().toString().c_str(), _apPass[0] ? "wpa2" : "open");
-      notify(_onApStarted);
-    }
+  // The AP is announced here, not per start event: hosted WiFi restarts the
+  // AP while softAP() configures it (start, stop, start), which gave two
+  // notices for one AP. See ApNotice.h.
+  if (_apNotice.due()) {
+    LOG_I("wifi: AP \"%s\" up at %s (%s)", _apSsid, WiFi.softAPIP().toString().c_str(), _apPass[0] ? "wpa2" : "open");
+    notify(_onApStarted);
   }
 
   const uint32_t now = millis();

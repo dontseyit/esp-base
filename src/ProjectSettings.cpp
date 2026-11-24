@@ -1,4 +1,4 @@
-#include "Settings.h"
+#include "ProjectSettings.h"
 
 #include <string.h>
 
@@ -15,14 +15,14 @@ bool libraryKey(const char* key) {
 }
 }  // namespace
 
-void Settings::begin(ConfigStore& store) {
+void ProjectSettings::begin(ConfigStore& store) {
   _store = &store;
   if (_mutex == nullptr) {
     _mutex = xSemaphoreCreateMutex();
   }
 }
 
-bool Settings::add(const SettingDef& def) {
+bool ProjectSettings::add(const SettingDef& def) {
   const char* why = nullptr;
   if (def.label == nullptr || def.def == nullptr || def.choices == nullptr || def.hint == nullptr) {
     why = "label, def, choices and hint must not be null";
@@ -50,7 +50,7 @@ bool Settings::add(const SettingDef& def) {
   return true;
 }
 
-const SettingDef* Settings::find(const char* key) const {
+const SettingDef* ProjectSettings::find(const char* key) const {
   if (key == nullptr) {
     return nullptr;
   }
@@ -62,7 +62,7 @@ const SettingDef* Settings::find(const char* key) const {
   return nullptr;
 }
 
-String Settings::get(const char* key) {
+String ProjectSettings::get(const char* key) {
   const SettingDef* def = find(key);
   if (def == nullptr || _store == nullptr) {
     return String();
@@ -70,12 +70,12 @@ String Settings::get(const char* key) {
   return _store->getString(def->key, def->def);
 }
 
-bool Settings::isSet(const char* key) {
+bool ProjectSettings::isSet(const char* key) {
   const SettingDef* def = find(key);
   return def != nullptr && _store != nullptr && _store->has(def->key);
 }
 
-bool Settings::check(const char* key, const String& value, String& err) const {
+bool ProjectSettings::check(const char* key, const String& value, String& err) const {
   const SettingDef* def = find(key);
   if (def == nullptr) {
     err = String(key != nullptr ? key : "") + ": unknown setting";
@@ -94,7 +94,7 @@ bool Settings::check(const char* key, const String& value, String& err) const {
   return true;
 }
 
-bool Settings::set(const char* key, const String& value, String& err) {
+bool ProjectSettings::set(const char* key, const String& value, String& err) {
   if (!check(key, value, err)) {
     return false;
   }
@@ -113,7 +113,7 @@ bool Settings::set(const char* key, const String& value, String& err) {
   return true;
 }
 
-bool Settings::clear(const char* key) {
+bool ProjectSettings::clear(const char* key) {
   const SettingDef* def = find(key);
   if (def == nullptr || _store == nullptr) {
     return false;
@@ -125,7 +125,7 @@ bool Settings::clear(const char* key) {
   return true;
 }
 
-bool Settings::queue(const char* const* keys, const String* values, const bool* isNull, size_t n) {
+bool ProjectSettings::queue(const char* const* keys, const String* values, const bool* isNull, size_t n) {
   std::vector<Change> request;
   request.reserve(n);
   for (size_t i = 0; i < n; ++i) {
@@ -146,7 +146,7 @@ bool Settings::queue(const char* const* keys, const String* values, const bool* 
   return room;
 }
 
-void Settings::loop() {
+void ProjectSettings::loop() {
   if (_mutex == nullptr || xSemaphoreTake(_mutex, 0) != pdTRUE) {
     return;  // a request is being handed over right now: next pass
   }
@@ -166,7 +166,7 @@ void Settings::loop() {
   }
 }
 
-void Settings::notify(const char* key) {
+void ProjectSettings::notify(const char* key) {
   for (const auto& cb : _onChange) {
     cb(key);
   }
