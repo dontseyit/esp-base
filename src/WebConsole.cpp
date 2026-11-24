@@ -8,6 +8,7 @@
 
 #include "ChipInfo.h"
 #include "WebGuard.h"
+#include "Settings.h"
 #include "WifiManager.h"
 #include "web/index_html_gz.h"
 
@@ -18,6 +19,7 @@ constexpr size_t kMaxWsMessage = 512;
 constexpr uint32_t kCleanupIntervalMs = 1000;
 constexpr int kMaxFramesPerLoop = 4;
 constexpr size_t kMaxJsonBody = 1024;        // API request bodies
+constexpr size_t kMaxSettingsBody = 4096;    // POST /api/settings: several values of up to 255 bytes
 constexpr uint32_t kTicketMs = 30000;        // WebSocket ticket lifetime
 constexpr uint8_t kMaxAuthFailures = 5;      // then logins are refused for kLockoutMs
 constexpr uint32_t kLockoutMs = 30000;
@@ -173,6 +175,95 @@ void WebConsole::setupRoutes() {
     response->addHeader("Content-Security-Policy", INDEX_HTML_CSP);
     request->send(response);
   });
+
+  // The project's own settings (Settings.h). A Secret never carries a value.
+  s.on("/api/settings", HTTP_GET, [this](AsyncWebServerRequest* request) {
+    AsyncJsonResponse* response = new AsyncJsonResponse();
+    JsonArray list = response->getRoot().to<JsonObject>()["settings"].to<JsonArray>();
+    for (size_t i = 0; _settings != nullptr && i < _settings->count(); ++i) {
+      const SettingDef& d = *_settings->at(i);
+      JsonObject e = list.add<JsonObject>();
+      e["key"] = d.key;
+      e["label"] = d.label;
+      e["kind"] = d.kind == SettingKind::Secret ? "secret" : d.kind == SettingKind::Choice ? "choice" : "text";
+      if (d.kind != SettingKind::Secret) {
+        e["value"] = _settings->get(d.key);
+      }
+      e["set"] = _settings->isSet(d.key);
+      if (d.kind == SettingKind::Choice) {
+        JsonArray choices = e["choices"].to<JsonArray>();
+        for (const char* p = d.choices; *p != '\0';) {
+          const char* end = strchr(p, ',');
+          const size_t n = end != nullptr ? static_cast<size_t>(end - p) : strlen(p);
+          String item;
+          item.concat(p, n);
+          choices.add(item);
+          if (end == nullptr) {
+            break;
+          }
+          p = end + 1;
+        }
+      }
+      if (*d.hint != '\0') {
+        e["hint"] = d.hint;
+      }
+      e["maxLen"] = d.maxLen;
+    }
+    response->setLength();
+    request->send(response);
+  });
+
+  // {"<key>": "<value>" | null, ...}: all of it or none. null clears a value;
+  // "" clears a Text or Choice and leaves a Secret as it is (the form sends an
+  // untouched secret field empty). This runs on the web server's task: it only
+  // checks, then hands the changes to the loop task.
+  s.on("/api/settings", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
+    const char* keys[Settings::kMaxSettings];
+    String values[Settings::kMaxSettings];
+    bool nulls[Settings::kMaxSettings];
+    size_t n = 0;
+    String err;
+    if (_settings == nullptr || !json.is<JsonObject>()) {
+      err = "an object of settings is required";
+    } else {
+      for (JsonPair p : json.as<JsonObject>()) {
+        const SettingDef* def = _settings->find(p.key().c_str());
+        if (def == nullptr || n >= Settings::kMaxSettings) {
+          err = String(p.key().c_str()) + ": unknown setting";
+          break;
+        }
+        const bool isNull = p.value().isNull();
+        if (!isNull && !p.value().is<const char*>()) {
+          err = String(def->key) + ": must be text";
+          break;
+        }
+        const String value = isNull ? String() : String(p.value().as<const char*>());
+        if (!isNull && value.isEmpty() && def->kind == SettingKind::Secret) {
+          continue;
+        }
+        const bool clear = isNull || value.isEmpty();
+        if (!clear && !_settings->check(def->key, value, err)) {
+          break;
+        }
+        keys[n] = def->key;
+        values[n] = value;
+        nulls[n] = clear;
+        ++n;
+      }
+    }
+    if (!err.isEmpty()) {
+      JsonDocument doc;
+      doc["ok"] = false;
+      doc["error"] = err;
+      String body;
+      serializeJson(doc, body);
+      request->send(400, "application/json", body);
+    } else if (n > 0 && !_settings->queue(keys, values, nulls, n)) {
+      request->send(503, "application/json", "{\"ok\":false,\"error\":\"busy\"}");
+    } else {
+      request->send(200, "application/json", "{\"ok\":true}");
+    }
+  }).setMaxContentLength(kMaxSettingsBody);
 
   s.on("/api/info", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
@@ -618,6 +709,13 @@ void WebConsole::writeInfo(JsonObject o) {
   o["hostname"] = _wifi->hostname();
   o["mac"] = _wifi->macAddress();
   writeWifiStatus(o["wifi"].to<JsonObject>());
+  // The tab the page opens on while the device is its own access point.
+  const WifiState state = _wifi->state();
+  const String& landing = _cfg->apLandingTab;
+  if ((state == WifiState::ApFallback || state == WifiState::ApOnly) &&
+      (landing == "wifi" || (landing == "settings" && _settings != nullptr && _settings->count() > 0))) {
+    o["landing"] = landing;
+  }
   o["fw"] = _cfg->fwVersion;
   o["build"] = __DATE__ " " __TIME__;
   o["lib"] = ESPBASE_VERSION;

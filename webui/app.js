@@ -14,13 +14,17 @@
   const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
 
   // ---- tabs -------------------------------------------------------------
-  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+  function showTab(name) {
+    const b = document.querySelector('.tab[data-panel="' + name + '"]');
+    if (!b || b.hidden) return;
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === b));
-    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === b.dataset.panel));
-    if (b.dataset.panel === 'info') refreshInfo();
-    if (b.dataset.panel === 'wifi') loadWifi();
-    if (b.dataset.panel === 'console') cmdEl.focus();
-  }));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === name));
+    if (name === 'info') refreshInfo();
+    if (name === 'wifi') loadWifi();
+    if (name === 'settings') loadSettings();
+    if (name === 'console') cmdEl.focus();
+  }
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.panel)));
 
   // ---- log pane ---------------------------------------------------------
   const fmtMs = (ms) => (Math.floor(ms / 1000) + '.' + String(ms % 1000).padStart(3, '0')).padStart(10, ' ');
@@ -119,9 +123,11 @@
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
     return (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   };
+  let lastInfo = null;
   async function refreshInfo() {
     let info;
-    try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return; }
+    try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return null; }
+    lastInfo = info;
     $('#host').textContent = info.hostname;
     document.title = info.hostname + ' console';
     $('#s-wifi').textContent = info.wifi.state.replace(/_/g, ' ') + (info.wifi.ap ? ' + AP' : '');
@@ -130,6 +136,7 @@
     $('#s-heap').textContent = fmtBytes(info.heap.free) + ' free';
     $('#s-uptime').textContent = fmtUp(info.uptime);
     $('#infobox').textContent = JSON.stringify(info, null, 2);
+    return info;
   }
   setInterval(refreshInfo, 5000);
 
@@ -217,7 +224,11 @@
     try {
       const j = await post('/api/wifi', body);
       if (!j.ok) { msg('#wifimsg', j.error || 'rejected', true); return; }
-      msg('#wifimsg', connect ? 'saved as primary, connecting — progress is in the console log' : 'stored as backup in slot ' + j.slot);
+      // On the device's own access point the page is about to lose it: say where the device will be.
+      const viaAp = lastInfo && lastInfo.wifi.ap;
+      msg('#wifimsg', !connect ? 'stored as backup in slot ' + j.slot
+        : viaAp ? 'Joining ' + body.ssid + '. This access point closes once it connects. Then open http://' + lastInfo.hostname + '.local/ on that network.'
+        : 'saved as primary, connecting — progress is in the console log');
       $('#pass').value = '';
       loadWifi();
     } catch (err) { msg('#wifimsg', 'request failed', true); }
@@ -237,6 +248,72 @@
       msg('#setmsg', j.ok ? 'applied' : j.error || 'rejected', !j.ok);
       if (j.ok) loadWifi();
     } catch (err) { msg('#setmsg', 'request failed', true); }
+  });
+
+  // ---- settings ----------------------------------------------------------
+  // The project's own settings (/api/settings). Labels and values go in as
+  // text, never as markup. A secret's value never reaches the page: its field
+  // is empty and only says whether one is set.
+  let shown = {};  // key -> the value its field was given, so only changes are posted
+  const settingsDirty = () => [...$('#settingsform').querySelectorAll('[name]')].some((f) => f.value !== shown[f.name]);
+  async function loadSettings() {
+    let r;
+    try { r = await api('/api/settings'); } catch (e) { return; }
+    const list = r.settings || [];
+    document.querySelector('.tab[data-panel="settings"]').hidden = !list.length;
+    const form = $('#settingsform');
+    const row = form.querySelector('.row');
+    form.querySelectorAll('label').forEach((l) => l.remove());
+    shown = {};
+    list.forEach((s) => {
+      const label = document.createElement('label');
+      label.textContent = s.label;
+      let f;
+      if (s.kind === 'choice') {
+        f = document.createElement('select');
+        (s.choices || []).forEach((c) => {
+          const o = document.createElement('option');
+          o.value = c;
+          o.textContent = c;
+          f.appendChild(o);
+        });
+        f.value = s.value;
+      } else {
+        f = document.createElement('input');
+        f.maxLength = s.maxLen;
+        if (s.kind === 'secret') {
+          f.type = 'password';
+          f.autocomplete = 'off';
+          f.placeholder = s.set ? '(set)' : '(not set)';
+        } else {
+          f.value = s.value;
+          if (s.hint) f.placeholder = s.hint;
+        }
+      }
+      f.name = s.key;
+      shown[s.key] = f.value;
+      label.appendChild(f);
+      form.insertBefore(label, row);
+    });
+  }
+  $('#settingsform').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {};
+    const fields = [...$('#settingsform').querySelectorAll('[name]')].filter((f) => f.value !== shown[f.name]);
+    fields.forEach((f) => { body[f.name] = f.value; });
+    if (!fields.length) { msg('#settingsmsg', 'nothing changed'); return; }
+    try {
+      const j = await post('/api/settings', body);
+      if (!j.ok) { msg('#settingsmsg', j.error || 'rejected', true); return; }
+      fields.forEach((f) => {
+        if (f.type === 'password') { f.placeholder = '(set)'; f.value = ''; }
+        shown[f.name] = f.value;
+      });
+      msg('#settingsmsg', 'saved');
+      // The device applies a change a moment later; then show what it holds
+      // (a cleared field falls back to its default), unless typing went on.
+      setTimeout(() => { if (!settingsDirty()) loadSettings(); }, 700);
+    } catch (err) { msg('#settingsmsg', 'request failed', true); }
   });
 
   // ---- ota --------------------------------------------------------------
@@ -279,6 +356,7 @@
   $('#level').value = lvl;
   logEl.className = 'log min-' + lvl;
   connect();
-  refreshInfo();
   cmdEl.focus();
+  // While the device is its own access point, the project may name the tab to open on.
+  loadSettings().then(refreshInfo).then((info) => { if (info && info.landing) showTab(info.landing); });
 })();

@@ -20,6 +20,7 @@
     <nav class="tabs">
       <button class="tab active" data-panel="console">Console</button>
       <button class="tab" data-panel="wifi">WiFi</button>
+      <button class="tab" data-panel="settings" hidden>Settings</button>
       <button class="tab" data-panel="update">Update</button>
       <button class="tab" data-panel="info">Info</button>
     </nav>
@@ -94,6 +95,13 @@
           </form>
         </div>
       </div>
+    </section>
+
+    <section id="settings" class="panel scroll">
+      <form id="settingsform" class="stack">
+        <div class="row"><button type="submit" class="primary">Save</button></div>
+        <p id="settingsmsg" class="msg"></p>
+      </form>
     </section>
 
     <section id="update" class="panel">

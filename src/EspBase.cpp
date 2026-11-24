@@ -64,6 +64,7 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
   }
 
   _wifi.begin(_cfg, _store);
+  _console.attachSettings(_settings);
   _console.begin(_cfg, _wifi, _store.getString(EspBaseKeys::WebPass, _cfg.webPassword));
 #ifndef ESPBASE_NO_OTA
   _ota.begin(_cfg, _console, _wifi.hostname());
