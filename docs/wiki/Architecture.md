@@ -9,13 +9,14 @@
 | `EspBase` | Facade. Owns the modules, runs `begin()` and `loop()`, built-in commands, status LED, deferred reboot. | `EspBase.*` |
 | `Log` | `LOG_x` macros, serial sink, ring buffer. | `Log.*` |
 | `ConfigStore` | Mutex protected wrapper over `Preferences` (NVS). | `ConfigStore.*` |
+| `Settings` | A project's own settings: definitions, values through `ConfigStore`, hand-over from other tasks, change callbacks. | `Settings.*`, `SettingsCheck.h` |
 | `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*` |
 | `WebConsole` | HTTP server, WebSocket, command registry, `/api` routes, embedded page. | `WebConsole.*`, `web/index_html_gz.h` |
 | `OtaUpdater` | ArduinoOTA and `POST /update`. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
 | `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
 | `ChipInfo` | The only place with `SOC_*` and `CONFIG_IDF_TARGET` checks. | `ChipInfo.h` |
 
-Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.apps()` and `base.ota()`.
+Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.settings()`, `base.apps()` and `base.ota()`.
 
 `ChipInfo` is usable from project code too:
 
@@ -55,10 +56,11 @@ What this means for your code:
 `base.loop()` runs these in order, and none of them waits:
 
 1. `WifiManager` starts the driver on the first call, drains WiFi events, applies queued credential and setting changes, runs its timers.
-2. `WebConsole` handles WebSocket connects, runs pending commands, streams new log lines, drops the oldest client beyond the limit.
-3. `AppManager` delivers input, ticks apps, draws, applies one navigation transition, checks the idle timeout.
-4. `OtaUpdater` runs `ArduinoOTA.handle()` and reboots after a finished web upload.
-5. Status LED and any scheduled reboot.
+2. `Settings` applies the changes the web server handed over and runs the change callbacks.
+3. `WebConsole` handles WebSocket connects, runs pending commands, streams new log lines, drops the oldest client beyond the limit.
+4. `AppManager` delivers input, ticks apps, draws, applies one navigation transition, checks the idle timeout.
+5. `OtaUpdater` runs `ArduinoOTA.handle()` and reboots after a finished web upload.
+6. Status LED and any scheduled reboot.
 
 `begin()` returns within a few milliseconds. The WiFi driver starts on the first `loop()` call.
 

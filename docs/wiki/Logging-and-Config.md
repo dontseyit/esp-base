@@ -57,6 +57,37 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 
 `config list` shows every key with secrets masked. `config set` validates WiFi keys the same way the WiFi tab does, and accepts only letters, digits and `-` in a hostname.
 
+## Project settings
+
+Your project's own settings live beside the library's keys. Define them in `setup()`, after `base.begin(cfg)`:
+
+```cpp
+static const SettingDef kSettings[] = {
+    {.key = "api_key", .label = "API key", .kind = SettingKind::Secret},
+    {.key = "units", .label = "Units", .kind = SettingKind::Choice, .def = "metric", .choices = "metric,imperial"},
+    {.key = "city", .label = "City", .def = "Berlin", .hint = "a town", .maxLen = 40},
+};
+for (const SettingDef& d : kSettings) base.settings().add(d);
+base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key); });
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `key` | | The NVS key: 1 to 15 of `a-z`, `0-9` and `_`, and not one of the library's keys. |
+| `label` | | Shown on the page. |
+| `kind` | `Text` | `Text`, `Secret` or `Choice`. A secret is write-only: the page, the API and the console tell only whether it is set. |
+| `def` | `""` | The value while nothing is stored. A `Choice` needs one of its choices here. |
+| `choices` | `""` | `Choice` only: `"a,b,c"`. |
+| `hint` | `""` | The field's placeholder on the page. |
+| `maxLen` | `63` | Bytes, 1 to 255. |
+| `validate` | none | `bool (*)(const String& value, String& err)`, a check of your own. It runs on the loop task and on the web server's task, so it must not touch state. |
+
+- `add()` returns false and logs an error for a bad or duplicate definition, and for the 25th.
+- `get(key)` returns the stored value or the default. `set()` and `clear()` are for the loop task; `queue()` hands changes over from any other task.
+- `onChange` callbacks run on the loop task after a value changed. Do not log a secret's value there.
+- The page shows the settings in a **Settings** tab, which is there only when at least one is defined. The console lists them with `settings`, and `config get|set|list` accept their keys.
+- The values are in the `espbase` namespace, so `factory-reset` erases them with everything else.
+
 ## EspBaseConfig
 
 | Field | Default | Meaning |
@@ -71,6 +102,7 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 | `statusLedPin`, `statusLedActiveLow` | `-1`, `false` | Optional status LED. |
 | `httpPort` | `80` | Web console port. |
 | `maxWsClients` | `4` | Console clients before the oldest is dropped. |
+| `apLandingTab` | `""` | The tab the page opens on while the device is its own access point: `""` (Console), `"wifi"` or `"settings"`. |
 | `webPassword` | `""` | Console, API and upload password (user `admin`), 8 to 63 characters; empty = open. |
 | `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch. The password protects espota, and `POST /update` while no `webPassword` is set. |
 | `logOutput`, `logBufferBytes`, `logLevel` | `nullptr`, `4096`, `Info` | Log sinks and default level. |

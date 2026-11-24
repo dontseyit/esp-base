@@ -6,9 +6,10 @@ A reusable Arduino library that gives every ESP32 project the same baseline out 
 - A browser console served from flash, with live logs, commands, WiFi setup and firmware upload.
 - OTA updates through espota or the browser, with optional passwords.
 - Persistent settings over NVS, and structured logging with a ring buffer.
+- A Settings tab on the page for your project's own settings, with write-only secrets.
 - An app framework with a navigation stack for building the product on top.
 
-The same code builds for ESP32, ESP32-S3 and ESP32-C3 (hardware tested) and for ESP32-C6 and ESP32-S2 (build tested). Pins, display, input, partitions and USB flags stay in your project.
+The same code builds for ESP32, ESP32-S3 and ESP32-C3 (hardware tested) and for ESP32-C6, ESP32-S2 and ESP32-P4 (build tested). On the P4 the WiFi is a second chip (ESP-Hosted) that your project powers and wires; it has run that way on an M5Stack Tab5. Pins, display, input, partitions and USB flags stay in your project.
 
 ## Documentation
 
@@ -45,7 +46,7 @@ framework = arduino
 lib_compat_mode = strict
 lib_ldf_mode = chain
 lib_deps =
-  https://github.com/dontseyit/esp-base.git#1.2.0
+  https://github.com/dontseyit/esp-base.git#1.3.0
 build_flags =
   -DFW_VERSION=\"1.2.3\"
 board_build.partitions = min_spiffs.csv   ; two 1.9 MB OTA slots

@@ -58,6 +58,7 @@ Values are stored in milliseconds. With several unreachable networks, the first 
 - SSID `<apSsidPrefix>-XXXX` from the last two MAC bytes, address `192.168.4.1`, up to 4 clients. Open, or WPA2 when `ap_pass` has 8 to 63 characters.
 - A DNS server answers every name with the AP address. Connectivity probes from Android, Apple, Windows and Firefox get a redirect to the portal. Requests addressed to the AP IP are served normally.
 - The chip has one radio. While the station scans or connects, the AP pauses for a second or two and follows the router's channel, so portal clients may drop briefly during retries.
+- The name is finished when the driver starts, because only then is there an address: `apSsid()` returns the prefix alone until the first `loop()`. Read it in an `onApStarted` callback, which runs once for each time the AP comes up, also on a chip whose WiFi is a second chip.
 
 ## Scans
 
