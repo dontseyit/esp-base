@@ -44,6 +44,7 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
   Log.begin(_cfg.logBufferBytes, _cfg.logOutput);
   Log.setLevel(_cfg.logLevel);
   _store.begin(EspBaseKeys::Namespace);
+  _settings.begin(_store);
   if (_store.has(EspBaseKeys::LogLevelKey)) {
     const uint8_t lvl = _store.getUChar(EspBaseKeys::LogLevelKey, static_cast<uint8_t>(_cfg.logLevel));
     if (lvl <= static_cast<uint8_t>(LogLevel::Debug)) {
@@ -82,6 +83,7 @@ void EspBase::loop() {
     return;
   }
   _wifi.loop();
+  _settings.loop();
   _console.loop();
   _apps.loop();
 #ifndef ESPBASE_NO_OTA
@@ -135,6 +137,18 @@ void EspBase::updateStatusLed() {
 }
 
 void EspBase::registerBuiltins() {
+  _console.addCommand(
+      "settings",
+      [this](const CmdArgs&, Print& out) {
+        if (_settings.count() == 0) {
+          out.println("the project defines no settings");
+        }
+        for (size_t i = 0; i < _settings.count(); ++i) {
+          showSetting(*_settings.at(i), out);
+        }
+      },
+      "the project's own settings (change them with: config set <key> <value>)");
+
   _console.addCommand(
       "help", [this](const CmdArgs&, Print& out) { _console.printHelp(out); }, "list commands");
 
@@ -279,10 +293,22 @@ void EspBase::showConfigKey(const char* key, bool skipUnset, Print& out) {
   }
 }
 
+// One line for a project setting. A Secret never shows its value.
+void EspBase::showSetting(const SettingDef& def, Print& out) {
+  if (def.kind == SettingKind::Secret) {
+    out.printf("  %-14s %s\r\n", def.key, _settings.isSet(def.key) ? "(set)" : "(not set)");
+  } else {
+    out.printf("  %-14s %s\r\n", def.key, _settings.get(def.key).c_str());
+  }
+}
+
 void EspBase::configCommand(const CmdArgs& a, Print& out) {
   if (!a.has(0) || a.is(0, "list")) {
     for (const char* const* k = EspBaseKeys::All; *k != nullptr; ++k) {
       showConfigKey(*k, slotOf(*k) > 1, out);  // unset backup slots are noise
+    }
+    for (size_t i = 0; i < _settings.count(); ++i) {
+      showSetting(*_settings.at(i), out);
     }
     out.printf("  (namespace \"%s\", %u free entries)\r\n", _store.ns(), static_cast<unsigned>(_store.freeEntries()));
     return;
@@ -292,6 +318,22 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
     return;
   }
   const String& key = a[1];
+  if (const SettingDef* def = _settings.find(key.c_str())) {  // a project setting
+    if (a.is(0, "get")) {
+      showSetting(*def, out);
+    } else if (a[2].isEmpty()) {
+      _settings.clear(def->key);
+      out.printf("%s cleared\r\n", def->key);
+    } else {
+      String err;
+      if (_settings.set(def->key, a[2], err)) {
+        out.printf("%s saved\r\n", def->key);
+      } else {
+        out.println(err);
+      }
+    }
+    return;
+  }
   if (!knownKey(key)) {
     out.println("unknown key (see: config list)");
     return;
