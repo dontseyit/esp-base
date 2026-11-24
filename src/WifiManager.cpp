@@ -574,7 +574,10 @@ void WifiManager::handleEvent(const Event& e) {
       }
       if (!_dns.isUp()) {
         _dns.setTTL(60);
-        if (!_dns.start()) {  // port 53, every name resolves to the AP IP
+        // Port 53, every name resolves to the AP IP. The explicit form: the
+        // core compiles the argument-less start() as "return false" on a chip
+        // whose Wi-Fi is a second chip (no SOC_WIFI_SUPPORTED).
+        if (!_dns.start(53, "*", WiFi.softAPIP())) {
           LOG_W("wifi: captive DNS failed to start");
         }
       }
