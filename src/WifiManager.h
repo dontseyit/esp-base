@@ -66,6 +66,8 @@ class WifiManager {
   // Safe to call from any task: copies of fixed buffers or driver queries.
   String hostname() const { return String(_hostname); }
   String staSsid() const;  // connected SSID, else the network being tried
+  // "<prefix>-XXXX" from the first loop() on; the prefix alone before that,
+  // because the address is only there once the driver has started.
   String apSsid() const { return String(_apSsid); }
   IPAddress localIP() const;
   IPAddress apIP() const;
@@ -160,6 +162,7 @@ class WifiManager {
   void abortAttempt();
   bool disconnectStation();
   void scheduleRetry(uint32_t delayMs);
+  void nameAp();
   void startAp();
   void stopAp();
   void startMdns();
@@ -190,6 +193,7 @@ class WifiManager {
   uint32_t _attemptStart = 0;
   uint32_t _nextRoundAt = 0;
   bool _apActive = false;
+  bool _apAnnounced = false;  // onApStarted was given for the AP that is up
   uint32_t _apStopAt = 0;
   bool _mdnsStarted = false;
   uint32_t _reconnects = 0;
@@ -218,6 +222,7 @@ class WifiManager {
 
   char _hostname[33] = {0};
   char _apSsid[33] = {0};
+  bool _apNamed = false;
   char _apPass[65] = {0};
 
   std::vector<Callback> _onConnected;
