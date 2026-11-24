@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [esp32, esp32s3, esp32c3, esp32c6, esp32s2]
+        env: [esp32, esp32s3, esp32c3, esp32c6, esp32s2, esp32p4]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
