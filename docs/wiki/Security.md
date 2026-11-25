@@ -28,6 +28,7 @@ Routes under `/api/` and `/app/` get the origin check and, with a password, the 
 
 ## What stays with the project
 
+- Moving or turning off the console page (`consolePath`) does not turn off the API, the WebSocket or OTA. `webPassword` protects them.
 - Set `webPassword`, `otaPassword` and `apPassword` before shipping. esp-base ships no default password, so first-time setup works without one printed on the device.
 - NVS stores the WiFi and console passwords, and a project's secret settings, in plain text. Enable flash encryption with NVS encryption if someone could read the flash.
 - esp-base does not check OTA image signatures. Use Secure Boot V2 if firmware authenticity matters.

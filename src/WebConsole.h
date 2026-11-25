@@ -147,6 +147,7 @@ class WebConsole {
   ProjectSettings* _settings = nullptr;
   DeviceStatus* _status = nullptr;
   bool _appLink = false;  // cfg.appPage is set and under /app/
+  String _consolePath;    // where the page is served; empty = nowhere
   AsyncWebServer* _server = nullptr;
   AsyncWebSocket _ws;
   std::vector<Command> _commands;

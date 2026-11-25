@@ -37,6 +37,7 @@ struct EspBaseConfig {
 
   // Web console ------------------------------------------------------------
   uint16_t httpPort = 80;
+  String consolePath = "/";          // where the console page is served; "/console" frees "/" for a page of the project's own, "" serves none (the API and /ws stay)
   uint8_t maxWsClients = 4;          // oldest client is dropped beyond this
   String apLandingTab = "";          // tab the page opens on while the device is its own AP (fallback or AP mode): "" = Console, "wifi", "settings", "device"
   String appPage = "";               // a page of the project's own, linked from the tab bar; must be under /app/, which the console login covers

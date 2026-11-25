@@ -66,11 +66,24 @@ static void test_guarded_paths() {
   TEST_ASSERT_FALSE(WebGuard::guardedPath("/generate_204"));
 }
 
+static void test_under_path() {
+  TEST_ASSERT_TRUE(WebGuard::underPath("/console", "/console"));
+  TEST_ASSERT_TRUE(WebGuard::underPath("/console/", "/console"));
+  TEST_ASSERT_TRUE(WebGuard::underPath("/console/x", "/console"));  // ESPAsyncWebServer serves the page here too
+  TEST_ASSERT_FALSE(WebGuard::underPath("/consoles", "/console"));
+  TEST_ASSERT_FALSE(WebGuard::underPath("/", "/console"));
+  TEST_ASSERT_TRUE(WebGuard::underPath("/", "/"));
+  TEST_ASSERT_FALSE(WebGuard::underPath("/x", "/"));
+  TEST_ASSERT_FALSE(WebGuard::underPath("/", ""));  // no console page: nothing is under it
+  TEST_ASSERT_FALSE(WebGuard::underPath(nullptr, "/"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_utf8);
   RUN_TEST(test_host);
   RUN_TEST(test_origin);
   RUN_TEST(test_guarded_paths);
+  RUN_TEST(test_under_path);
   return UNITY_END();
 }

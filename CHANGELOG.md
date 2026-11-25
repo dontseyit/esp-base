@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows
 - `-DESPBASE_NO_APPS` compiles the app framework out for headless devices, along with `base.apps()`, the `app` command, `/api/apps` and the `boot_app` key. It saves about 13 KB of flash on the bundled example.
 - The `esp32-lean` build env, built by CI, sets `ESPBASE_NO_APPS` and `ESPBASE_NO_OTA` so both flags stay buildable.
 - `DeviceStatus`, reached through `base.status()`: the project's own values and buttons, shown in a **Device** tab of the page (`GET /api/status`). `set()` works from any task, and a button runs a console command. `apLandingTab` accepts `"device"`.
+- `EspBaseConfig::consolePath`: where the console page is served, `/` by default. Another path frees `/` for a portal of the project's own, and `""` serves no page. The API and `/ws` stay either way.
 - `EspBaseConfig::appPage` and `appPageTitle`: a page of the project's own under `/app/`, linked from the tab bar.
 - `EspBaseConfig::otaTrialMs` (30 s): a firmware written by OTA boots on trial, and the bootloader returns to the previous firmware if it resets before the trial ends. `base.reboot()` and `OtaUpdater::keep()` end the trial early.
 

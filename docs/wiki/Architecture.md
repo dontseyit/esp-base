@@ -85,7 +85,7 @@ Measured on the bundled example:
 | --- | --- |
 | Static RAM | 39 to 54 KB depending on the chip |
 | Flash (`firmware.bin`) | 1.08 to 1.27 MB |
-| Web page | about 8 KB gzipped, budget 20 KB |
+| Web page | about 9 KB gzipped, budget 20 KB |
 | Log ring | 4 KB (`logBufferBytes`) |
 | WebSocket clients | 4 (`maxWsClients`) |
 

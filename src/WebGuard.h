@@ -82,9 +82,19 @@ inline bool originMatches(const char* origin, const char* host) {
   return sep != nullptr && host != nullptr && strcasecmp(sep + 3, host) == 0;
 }
 
+// `base` itself or anything below `base` + "/": what ESPAsyncWebServer's on(base)
+// answers, so a check of the same paths covers every request that handler gets.
+inline bool underPath(const char* url, const char* base) {
+  if (url == nullptr || base == nullptr || *base == '\0') {
+    return false;
+  }
+  const size_t n = strlen(base);
+  return strncmp(url, base, n) == 0 && (url[n] == '\0' || url[n] == '/');
+}
+
 // The project's own pages: "/app" and everything below "/app/".
 inline bool appPath(const char* url) {
-  return url != nullptr && strncmp(url, "/app", 4) == 0 && (url[4] == '\0' || url[4] == '/');
+  return underPath(url, "/app");
 }
 
 // Paths that pass the origin check and, with a password, the login before any

@@ -101,6 +101,7 @@ base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key);
 | `apRetryIntervalMs` | `60000` | Retry rounds in AP fallback; 0 = never. |
 | `statusLedPin`, `statusLedActiveLow` | `-1`, `false` | Optional status LED. |
 | `httpPort` | `80` | Web console port. |
+| `consolePath` | `"/"` | Where the console page is served. Another path such as `"/console"` frees `/` for a portal of your own, and `""` serves no page. The API and `/ws` stay either way. See [Your own portal](Console-and-API.md#your-own-portal). |
 | `maxWsClients` | `4` | Console clients before the oldest is dropped. |
 | `apLandingTab` | `""` | The tab the page opens on while the device is its own access point: `""` (Console), `"wifi"`, `"settings"` or `"device"`. |
 | `appPage`, `appPageTitle` | `""`, `"App"` | A page of the project's own, linked from the tab bar. It must be under `/app/`, which the console login covers. See [A page of your own](Console-and-API.md#a-page-of-your-own). |

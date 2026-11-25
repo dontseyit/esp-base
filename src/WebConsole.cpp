@@ -144,7 +144,7 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
       return;
     }
     // The WebSocket authenticates with a ticket instead (consumeTicket()).
-    if ((api || url == "/") && url != "/ws" && !authenticated(request)) {
+    if ((api || WebGuard::underPath(url.c_str(), _consolePath.c_str())) && url != "/ws" && !authenticated(request)) {
       requestAuth(request);
       return;
     }
@@ -156,10 +156,26 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
     LOG_E("web: appPage \"%s\" refused: the console login only covers /app/", cfg.appPage.c_str());
   }
 
+  // The page moves or goes, the API and /ws stay: a page of the project's own
+  // at "/" uses them, and the captive portal opens on "/". A '*' would make
+  // ESPAsyncWebServer match more paths than the login check covers.
+  _consolePath = cfg.consolePath;
+  if (!_consolePath.isEmpty() &&
+      (!_consolePath.startsWith("/") || _consolePath.indexOf('*') >= 0 || WebGuard::guardedPath(_consolePath.c_str()))) {
+    LOG_E("web: consolePath \"%s\" refused: it must start with /, have no *, and stay out of /api/, /app/, /ws and /update",
+          _consolePath.c_str());
+    _consolePath = "";
+  }
+
   setupRoutes();
   _server->addHandler(&_ws);
   _server->begin();
-  LOG_I("web: console on port %u (page %u bytes gzipped), ws at /ws", cfg.httpPort, static_cast<unsigned>(INDEX_HTML_GZ_LEN));
+  if (_consolePath.isEmpty()) {
+    LOG_I("web: no console page; API and ws at /ws on port %u", cfg.httpPort);
+  } else {
+    LOG_I("web: console at %s on port %u (page %u bytes gzipped), ws at /ws", _consolePath.c_str(), cfg.httpPort,
+          static_cast<unsigned>(INDEX_HTML_GZ_LEN));
+  }
   if (!authRequired()) {
     LOG_W("web: no console password, anyone on the network can control this device (cfg.webPassword or \"config set web_pass\")");
   }
@@ -168,19 +184,21 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
 void WebConsole::setupRoutes() {
   AsyncWebServer& s = *_server;
 
-  s.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-    const AsyncWebHeader* inm = request->getHeader("If-None-Match");
-    if (inm != nullptr && inm->value() == INDEX_HTML_ETAG) {
-      request->send(304);
-      return;
-    }
-    AsyncWebServerResponse* response = request->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
-    response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("Cache-Control", "no-cache");
-    response->addHeader("ETag", INDEX_HTML_ETAG);
-    response->addHeader("Content-Security-Policy", INDEX_HTML_CSP);
-    request->send(response);
-  });
+  if (!_consolePath.isEmpty()) {
+    s.on(_consolePath.c_str(), HTTP_GET, [](AsyncWebServerRequest* request) {
+      const AsyncWebHeader* inm = request->getHeader("If-None-Match");
+      if (inm != nullptr && inm->value() == INDEX_HTML_ETAG) {
+        request->send(304);
+        return;
+      }
+      AsyncWebServerResponse* response = request->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      response->addHeader("ETag", INDEX_HTML_ETAG);
+      response->addHeader("Content-Security-Policy", INDEX_HTML_CSP);
+      request->send(response);
+    });
+  }
 
   // The project's own settings (ProjectSettings.h). A Secret never carries a value.
   s.on("/api/settings", HTTP_GET, [this](AsyncWebServerRequest* request) {

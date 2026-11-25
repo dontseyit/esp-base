@@ -3,7 +3,7 @@
 A reusable Arduino library that gives every ESP32 project the same baseline out of the box:
 
 - WiFi station with AP fallback and captive portal, up to five stored networks, three radio modes and mDNS.
-- A browser console served from flash, with live logs, commands, WiFi setup and firmware upload.
+- A browser console served from flash, with live logs, commands, WiFi setup and firmware upload. It is the default portal, and a project can move it or turn it off to serve its own.
 - OTA updates through espota or the browser, with optional passwords, and a rollback when an updated firmware resets in its first 30 s.
 - Persistent settings over NVS, and structured logging with a ring buffer.
 - A Settings tab on the page for your project's own settings, with write-only secrets.

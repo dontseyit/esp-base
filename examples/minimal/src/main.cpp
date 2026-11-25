@@ -74,6 +74,7 @@ void setup() {
   cfg.staTimeoutMs = 20000;         // STA attempt before AP fallback
   cfg.statusLedPin = LED_PIN;       // -1 = none
   cfg.httpPort = 80;
+  cfg.consolePath = "/";            // the console page; "/console" frees "/" for a portal of your own, "" serves none
   cfg.otaEnabled = true;
   cfg.otaPassword = "";             // set one before shipping
   cfg.logOutput = &Serial;          // serial sink for LOG_x

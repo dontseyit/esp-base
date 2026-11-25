@@ -4,7 +4,7 @@
 
 ## The web console
 
-Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 8 KB.
+Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 9 KB. It is the default portal: the captive portal opens on it. `cfg.consolePath` moves it or turns it off, see [Your own portal](#your-own-portal).
 
 - **Console**: live log with level and text filter, command line with history (arrow keys).
 - **Device**: the project's own values and buttons, when it defines any. See [The Device tab](#the-device-tab).
@@ -95,11 +95,26 @@ base.web().on("/app/", HTTP_GET, [](AsyncWebServerRequest* r) { r->send(200, "te
 - Everything under `/app/` is behind the console login, so the page's own calls to `/api/...` need no login of their own. A page anywhere else is public, even with a password set, and `appPage` refuses it with an error in the log.
 - The page is yours: its HTML, scripts and Content-Security-Policy. Serve it from flash (`PROGMEM`, gzipped) or from LittleFS with `serveStatic("/app/", LittleFS, "/www/")`.
 
+### Your own portal
+
+The console shows end users more than a consumer product should. Move it, or turn it off, and serve a portal of your own at `/`, where the captive portal opens:
+
+```cpp
+cfg.consolePath = "/console";   // or "" for no console page
+base.begin(cfg);
+base.web().on("/", HTTP_GET, [](AsyncWebServerRequest* r) { r->send(200, "text/html", kPortalHtml); });
+```
+
+- Your portal uses the same JSON API as the console: `/api/wifi/scan` and `/api/wifi` to join a network, `/api/settings`, `/api/status` and `/api/info`. See [HTTP routes](#http-routes).
+- Moving or removing the page changes nothing else. The API, the WebSocket with its commands, and OTA all stay. Set `webPassword` before shipping, because without it anyone on the network can use them.
+- The console login covers the console page wherever it is. Your page at `/` is public, but its calls to `/api/` need the password when one is set, WiFi setup included.
+- The path must start with `/`, contain no `*`, and stay out of `/api/`, `/app/`, `/ws` and `/update`. Otherwise no console page is served and the log says why.
+
 ## HTTP routes
 
 | Route | Description |
 | --- | --- |
-| `GET /` | The console page, `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). |
+| `GET /` | The console page, at `cfg.consolePath` (`/` by default), `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). |
 | `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `hostname`, `mac`, `wifi{state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`, and `app{path,title}` when `cfg.appPage` is set. |
 | `GET /api/log` | The ring buffer as text. |
 | `GET /api/ws-ticket` | `{"ticket":"..."}`, a single-use WebSocket ticket valid for 30 s. |
