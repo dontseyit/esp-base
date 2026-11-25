@@ -76,6 +76,11 @@ void setup() {
 
   base.begin(cfg);
 
+  // A setting of the project's own. It shows in the page's Settings tab and
+  // in the "settings" and "config" commands.
+  static const SettingDef kGreeting = {.key = "greeting", .label = "Greeting", .def = "hello", .hint = "any text", .maxLen = 20};
+  base.settings().add(kGreeting);
+
   base.console().addCommand("led", ledCommand, "led <on|off>");
 
   base.web().on("/api/state", HTTP_GET, [](AsyncWebServerRequest* request) {

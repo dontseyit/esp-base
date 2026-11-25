@@ -10,6 +10,8 @@
 | OTA fails with "not enough space" | the app slot is too small | `board_build.partitions = min_spiffs.csv` or a larger table |
 | espota cannot find the device | mDNS only runs while the station is connected | use the IP; on the AP use `192.168.4.1`; allow UDP 3232 |
 | The captive portal does not pop up | the phone stays on mobile data or cached the check | open `http://192.168.4.1/` by hand |
+| On an ESP32-P4 the log says `captive DNS failed to start` and the portal never pops up | before 1.3.0 the captive DNS was started in a form the core disables on a chip without WiFi of its own | update to 1.3.0 |
+| On an ESP32-P4 the AP is named `<prefix>-0000` | before 1.3.0 the address was read before the WiFi chip was up | update to 1.3.0 |
 | The AP takes long to appear | each stored network gets `sta_timeout` in turn | lower `sta_timeout`; set `reconn_timeout` to 0 for an instant AP after a lost link |
 | AP clients drop about once a minute | retry rounds briefly pause the AP (one radio) | raise `ap_retry`, or 0 to retry only on demand |
 | A hostname or AP password change has no effect | both are read at boot | reboot |

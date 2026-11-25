@@ -14,13 +14,17 @@
   const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
 
   // ---- tabs -------------------------------------------------------------
-  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+  function showTab(name) {
+    const b = document.querySelector('.tab[data-panel="' + name + '"]');
+    if (!b || b.hidden) return;
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === b));
-    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === b.dataset.panel));
-    if (b.dataset.panel === 'info') refreshInfo();
-    if (b.dataset.panel === 'wifi') loadWifi();
-    if (b.dataset.panel === 'console') cmdEl.focus();
-  }));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === name));
+    if (name === 'info') refreshInfo();
+    if (name === 'wifi') loadWifi();
+    if (name === 'settings') loadSettings();
+    if (name === 'console') cmdEl.focus();
+  }
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.panel)));
 
   // ---- log pane ---------------------------------------------------------
   const fmtMs = (ms) => (Math.floor(ms / 1000) + '.' + String(ms % 1000).padStart(3, '0')).padStart(10, ' ');
@@ -78,7 +82,11 @@
 
   // ---- command input with history -------------------------------------
   // Commands carrying passwords stay in this session's history but never reach localStorage.
+  // So do "config set" commands for the project's secret settings.
   const SECRET = /^\s*(wifi\s+(set|add)|config\s+set\s+\S*pass)\b/i;
+  const isSecretCmd = (c) => SECRET.test(c) || secretKeys.some((k) => new RegExp('^\\s*config\\s+set\\s+' + k + '\\b', 'i').test(c));
+  // Nothing is stored until /api/settings has named the secret keys (secretKeys is null till then).
+  const keepHist = () => { if (secretKeys) save('hist', JSON.stringify(hist.filter((h) => !isSecretCmd(h)))); };
   let hist = [];
   try { hist = JSON.parse(load('hist', '[]')); } catch (e) { hist = []; }
   let hi = hist.length;
@@ -96,7 +104,7 @@
     if (hist[hist.length - 1] !== c) hist.push(c);
     if (hist.length > 50) hist.shift();
     hi = hist.length;
-    save('hist', JSON.stringify(hist.filter((h) => !SECRET.test(h))));
+    keepHist();
   });
   cmdEl.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp') {
@@ -119,9 +127,11 @@
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
     return (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   };
+  let lastInfo = null;
   async function refreshInfo() {
     let info;
-    try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return; }
+    try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return null; }
+    lastInfo = info;
     $('#host').textContent = info.hostname;
     document.title = info.hostname + ' console';
     $('#s-wifi').textContent = info.wifi.state.replace(/_/g, ' ') + (info.wifi.ap ? ' + AP' : '');
@@ -130,6 +140,7 @@
     $('#s-heap').textContent = fmtBytes(info.heap.free) + ' free';
     $('#s-uptime').textContent = fmtUp(info.uptime);
     $('#infobox').textContent = JSON.stringify(info, null, 2);
+    return info;
   }
   setInterval(refreshInfo, 5000);
 
@@ -213,11 +224,17 @@
   async function saveNetwork(connect) {
     if (!$('#ssid').value) { msg('#wifimsg', 'enter a network name', true); return; }
     const body = { ssid: $('#ssid').value, pass: $('#pass').value, connect };
+    // Over the device's own access point this page is about to go: settings typed and not saved would go with it.
+    if (connect && viaClosingAp() && settingsDirty()) { msg('#wifimsg', 'Settings has unsaved changes. Save them first.', true); return; }
     if (connect) body.slot = 1;
     try {
       const j = await post('/api/wifi', body);
       if (!j.ok) { msg('#wifimsg', j.error || 'rejected', true); return; }
-      msg('#wifimsg', connect ? 'saved as primary, connecting — progress is in the console log' : 'stored as backup in slot ' + j.slot);
+      // Over the device's own access point the page is about to lose it: say where the device will be, and what a wrong password looks like.
+      msg('#wifimsg', !connect ? 'stored as backup in slot ' + j.slot
+        : viaClosingAp() ? 'Joining ' + body.ssid + '. When it connects, the ' + lastInfo.wifi.ap.ssid + ' network disappears: put your phone back on ' + body.ssid
+          + ' and open http://' + lastInfo.hostname + '.local/. If this page is still here after a minute, check the password and save again.'
+        : 'saved as primary, connecting — progress is in the console log');
       $('#pass').value = '';
       loadWifi();
     } catch (err) { msg('#wifimsg', 'request failed', true); }
@@ -237,6 +254,114 @@
       msg('#setmsg', j.ok ? 'applied' : j.error || 'rejected', !j.ok);
       if (j.ok) loadWifi();
     } catch (err) { msg('#setmsg', 'request failed', true); }
+  });
+
+  // ---- settings ----------------------------------------------------------
+  // The project's own settings (/api/settings). Labels, hints and values go in
+  // as text, never as markup. A secret's value never reaches the page: its
+  // field is empty and only says whether one is saved.
+  let shown = {};       // key -> the value its field was given, so only changes are posted
+  let secretKeys = null;  // for the console's history, which must not keep them; null until the device names them
+  let saving = false;
+  const settingsFields = () => [...$('#settingsform').querySelectorAll('[name]')];
+  const settingsDirty = () => settingsFields().some((f) => f.value !== shown[f.name]);
+  // True while the page is served over the device's own access point and that
+  // access point closes as soon as the station connects (mode "sta").
+  const viaClosingAp = () => !!(lastInfo && lastInfo.wifi.ap && lastInfo.wifi.mode === 'sta');
+  async function loadSettings() {
+    let r;
+    try { r = await api('/api/settings'); } catch (e) { return; }
+    const list = r.settings || [];
+    document.querySelector('.tab[data-panel="settings"]').hidden = !list.length;
+    if (r.settings) {  // an error answer names no keys: keep not storing
+      secretKeys = list.filter((s) => s.kind === 'secret').map((s) => s.key);
+      keepHist();  // also scrubs what an earlier page stored before it knew the keys
+    }
+    if (settingsDirty()) return;  // never write over what was typed and not saved
+    const form = $('#settingsform');
+    const row = form.querySelector('.row');
+    // The fields are built once and then updated in place, so the cursor (and
+    // a phone's keyboard) stays where it is when the page reads again.
+    if (settingsFields().map((f) => f.name).join() !== list.map((s) => s.key).join()) {
+      form.querySelectorAll('label').forEach((l) => l.remove());
+      list.forEach((s) => {
+        const label = document.createElement('label');
+        label.textContent = s.label;
+        let f;
+        if (s.kind === 'choice') {
+          f = document.createElement('select');
+          (s.choices || []).forEach((c) => {
+            const o = document.createElement('option');
+            o.value = c;
+            o.textContent = c;
+            f.appendChild(o);
+          });
+        } else {
+          f = document.createElement('input');
+          f.maxLength = s.maxLen;
+          if (s.kind === 'secret') {
+            f.type = 'password';
+            f.autocomplete = 'off';
+          }
+        }
+        f.name = s.key;
+        label.appendChild(f);
+        if (s.hint) {
+          const h = document.createElement('span');
+          h.className = 'hint';
+          h.textContent = s.hint;
+          label.appendChild(h);
+        }
+        form.insertBefore(label, row);
+      });
+    }
+    list.forEach((s) => {
+      const f = form.querySelector('[name="' + s.key + '"]');
+      if (s.kind === 'secret') {
+        f.value = '';
+        f.placeholder = s.set ? 'saved, type to replace' : 'not set yet';
+      } else {
+        f.value = s.value;
+      }
+      shown[s.key] = f.value;
+    });
+  }
+  $('#settingsform').addEventListener('input', () => msg('#settingsmsg', ''));
+  $('#settingsform').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    const fields = settingsFields().filter((f) => f.value !== shown[f.name]);
+    if (!fields.length) { msg('#settingsmsg', 'Nothing to save.'); return; }
+    const body = {};
+    fields.forEach((f) => { body[f.name] = f.value; });
+    const btn = $('#settingsform button[type="submit"]');
+    saving = true;
+    btn.disabled = true;
+    msg('#settingsmsg', 'Saving\u2026');
+    try {
+      const j = await post('/api/settings', body);
+      if (!j.ok) {
+        // The device answers "<key>: <reason>": say the field's label and go to it.
+        const err = j.error || 'rejected';
+        const f = settingsFields().find((x) => err.startsWith(x.name + ': '));
+        msg('#settingsmsg', f ? f.parentNode.firstChild.textContent + err.slice(f.name.length) : err, true);
+        if (f) f.focus();
+        return;
+      }
+      fields.forEach((f) => {
+        if (f.type === 'password') { f.placeholder = 'saved, type to replace'; f.value = ''; }
+        shown[f.name] = f.value;
+      });
+      msg('#settingsmsg', viaClosingAp() ? 'Saved. Next: open the WiFi tab and add your home network.' : 'Saved.');
+      // The device applies a change a moment later; then show what it holds
+      // (a cleared field falls back to its default).
+      setTimeout(loadSettings, 700);
+    } catch (err) {
+      msg('#settingsmsg', 'Could not reach the device. Try again.', true);
+    } finally {
+      saving = false;
+      btn.disabled = false;
+    }
   });
 
   // ---- ota --------------------------------------------------------------
@@ -279,6 +404,7 @@
   $('#level').value = lvl;
   logEl.className = 'log min-' + lvl;
   connect();
-  refreshInfo();
   cmdEl.focus();
+  // While the device is its own access point, the project may name the tab to open on.
+  loadSettings().then(refreshInfo).then((info) => { if (info && info.landing) showTab(info.landing); });
 })();

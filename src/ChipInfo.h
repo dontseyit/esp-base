@@ -13,6 +13,17 @@ constexpr int cores() {
   return static_cast<int>(SOC_CPU_CORES_NUM);
 }
 
+// The chip has a WiFi radio of its own. False where WiFi is a second chip
+// reached through ESP-Hosted (ESP32-P4): there the station address exists only
+// once the WiFi driver has started.
+constexpr bool hasOwnWifi() {
+#if defined(SOC_WIFI_SUPPORTED) && SOC_WIFI_SUPPORTED
+  return true;
+#else
+  return false;
+#endif
+}
+
 // Bluetooth Low Energy controller present.
 constexpr bool hasBle() {
 #if defined(SOC_BLE_SUPPORTED) && SOC_BLE_SUPPORTED

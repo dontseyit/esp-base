@@ -4,7 +4,7 @@
 
 ## The web console
 
-Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 6 KB.
+Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 8 KB.
 
 - **Console**: live log with level and text filter, command line with history (arrow keys).
 - **WiFi**: stored networks, primary and backup entry, scan, mode and timers.
@@ -19,7 +19,8 @@ Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single g
 | `info`, `heap` | Device summary, heap statistics. |
 | `reboot`, `factory-reset` | Restart, or erase the `espbase` namespace and restart. |
 | `wifi ...` | Networks, mode, scan. See [WiFi](WiFi.md#managing-networks). |
-| `config list\|get\|set` | Persisted keys. See [Logging and config](Logging-and-Config.md#key-reference). |
+| `config list\|get\|set` | Persisted keys, the project's settings among them. See [Logging and config](Logging-and-Config.md#key-reference). |
+| `settings` | The project's own settings; a secret shows only as `(set)` or `(not set)`. Change one with `config set <key> <value>`; without a value it goes back to its default. See [Project settings](Logging-and-Config.md#project-settings). |
 | `log level [e\|w\|i\|d]`, `log dump` | Runtime log level (persisted), print the ring buffer. |
 | `app ...` | App framework. See [Apps](Apps.md#console-and-api). |
 
@@ -72,9 +73,13 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 | `POST /api/wifi/settings` | Any of `{"mode":"sta\|ap\|apsta","staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"}`, validated, persisted and applied without a reboot. 400 with an `error` on the first invalid field. |
 | `POST /api/wifi/scan` | Start a scan: 202, or 409 when busy. |
 | `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
+| `GET /api/settings` | `{"settings":[{"key","label","kind":"text\|secret\|choice","value","set","choices":[...],"hint","maxLen"}]}`: the project's settings. A secret never has a `value`. |
+| `POST /api/settings` | `{"<key>":"<value>"\|null, ...}`. Every pair is checked first, and one bad pair changes nothing: 400 with an `error` that names the key. 503 while too many requests wait. 200 means the request passed the checks; the loop task writes it a moment later, and a write that fails there (NVS full, say) is logged while the other keys still change. `null` clears a value; `""` clears a text or a choice and leaves a secret as it is. |
 | `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions. See [Apps](Apps.md#console-and-api). |
 | `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
 | `GET /ws` | WebSocket. |
+
+While the device is its own access point and `apLandingTab` is set, `/api/info` also carries `"landing":"wifi"` or `"landing":"settings"`, and the page opens on that tab.
 
 Any other path returns 404, except while the AP is up: requests that arrive through the AP interface for a foreign host (the connectivity probes phones and laptops send) are redirected to the portal.
 

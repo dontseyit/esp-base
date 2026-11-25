@@ -3,11 +3,14 @@
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include <esp_mac.h>
+#include <esp_wifi.h>
 #include <string.h>
 
 #include <algorithm>
 
+#include "ChipInfo.h"
 #include "Log.h"
+#include "WifiNaming.h"
 
 namespace {
 constexpr uint32_t kInitialRetryMs = 1000;
@@ -141,9 +144,19 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   }
   strncpy(_hostname, host.c_str(), sizeof(_hostname) - 1);
 
+  // The AP's name ends in the last two bytes of the station address. A chip
+  // with WiFi of its own has that address now, and the name is complete after
+  // begin() as in every release. Where WiFi is a second chip there is no
+  // address before the driver has started: the name stays the prefix alone
+  // until nameAp() finishes it.
   uint8_t mac[6] = {0};
-  esp_read_mac(mac, ESP_MAC_WIFI_STA);
-  snprintf(_apSsid, sizeof(_apSsid), "%.27s-%02X%02X", cfg.apSsidPrefix.c_str(), mac[4], mac[5]);
+  _apNamed = ChipInfo::hasOwnWifi();
+  if (_apNamed) {
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    WifiNaming::apSsid(_apSsid, sizeof(_apSsid), cfg.apSsidPrefix.c_str(), mac);
+  } else {
+    snprintf(_apSsid, sizeof(_apSsid), "%.27s", cfg.apSsidPrefix.c_str());
+  }
 
   String apPass = store.getString(EspBaseKeys::ApPass, cfg.apPassword);
   if (passError(apPass) != nullptr) {
@@ -164,8 +177,12 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   WiFi.setHostname(_hostname);   // must precede WiFi.mode()
   WiFi.onEvent([this](arduino_event_id_t id, arduino_event_info_t info) { queueEvent(id, info); });
 
-  LOG_I("wifi: hostname %s, mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s, mode %s, %u stored network(s)", _hostname, mac[0], mac[1], mac[2],
-        mac[3], mac[4], mac[5], _apSsid, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  if (_apNamed) {
+    LOG_I("wifi: hostname %s, mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s, mode %s, %u stored network(s)", _hostname, mac[0], mac[1], mac[2],
+          mac[3], mac[4], mac[5], _apSsid, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  } else {
+    LOG_I("wifi: hostname %s, mode %s, %u stored network(s)", _hostname, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  }
   LOG_D("wifi: sta timeout %lu ms, reconnect timeout %lu ms, ap retry %lu ms", static_cast<unsigned long>(_settings.staTimeoutMs),
         static_cast<unsigned long>(_settings.reconnectTimeoutMs), static_cast<unsigned long>(_settings.apRetryIntervalMs));
   // The driver starts from the first loop() call (see startDriver()), which
@@ -239,6 +256,7 @@ void WifiManager::startDriver() {
     return;
   }
   WiFi.mode(WIFI_STA);  // starts the WiFi driver, typically 50..200 ms
+  nameAp();
   if (_apPersistent) {
     startAp();
   }
@@ -321,6 +339,7 @@ void WifiManager::radioOff() {
     LOG_W("wifi: the driver did not stop");
   }
   _apActive = false;
+  _apNotice.takenDown();
   _apStopAt = 0;
   _awaitingDisconnect = false;
   _connectCallFailed = false;
@@ -466,11 +485,31 @@ void WifiManager::attemptFailed(const char* why) {
   }
 }
 
+// Finishes the AP's name where begin() could not (ChipInfo::hasOwnWifi() is
+// false): on a chip whose WiFi is a second chip the address read in begin()
+// is all zeros, and every such device was named "...-0000". It needs the
+// driver, and the driver is asked, not the netif: WiFi.macAddress() is still
+// zeros right after WiFi.mode() there.
+void WifiManager::nameAp() {
+  if (_apNamed) {
+    return;
+  }
+  uint8_t mac[6] = {0};
+  if (esp_wifi_get_mac(WIFI_IF_STA, mac) != ESP_OK) {
+    LOG_W("wifi: no address yet, AP name stays \"%s\"", _apSsid);
+    return;  // tried again when the AP is next started
+  }
+  WifiNaming::apSsid(_apSsid, sizeof(_apSsid), _cfg->apSsidPrefix.c_str(), mac);
+  _apNamed = true;
+  LOG_I("wifi: mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], _apSsid);
+}
+
 void WifiManager::startAp() {
   if (_apActive) {
     return;
   }
   WiFi.mode(WIFI_AP_STA);  // STA stays enabled for retries and scans
+  nameAp();                // mode "ap" starts the driver here
   const bool ok = WiFi.softAP(_apSsid, _apPass[0] ? _apPass : nullptr, 1, 0, kApMaxClients);
   if (!ok) {
     LOG_E("wifi: softAP failed");
@@ -487,6 +526,7 @@ void WifiManager::stopAp() {
   WiFi.softAPdisconnect(false);
   WiFi.mode(WIFI_STA);
   _apActive = false;
+  _apNotice.takenDown();
 }
 
 void WifiManager::startMdns() {
@@ -569,21 +609,24 @@ void WifiManager::handleEvent(const Event& e) {
 
     case ARDUINO_EVENT_WIFI_AP_START:
       _apActive = true;
+      _apNotice.started();  // announced by loop(), see ApNotice.h
       if (_state == WifiState::StaConnected && !_apPersistent && _apStopAt == 0) {
         _apStopAt = millis() + kApGraceAfterStaMs;  // STA won the race, AP is not needed
       }
       if (!_dns.isUp()) {
         _dns.setTTL(60);
-        if (!_dns.start()) {  // port 53, every name resolves to the AP IP
+        // Port 53, every name resolves to the AP IP. The explicit form: the
+        // core compiles the argument-less start() as "return false" on a chip
+        // whose Wi-Fi is a second chip (no SOC_WIFI_SUPPORTED).
+        if (!_dns.start(53, "*", WiFi.softAPIP())) {
           LOG_W("wifi: captive DNS failed to start");
         }
       }
-      LOG_I("wifi: AP \"%s\" up at %s (%s)", _apSsid, WiFi.softAPIP().toString().c_str(), _apPass[0] ? "wpa2" : "open");
-      notify(_onApStarted);
       break;
 
     case ARDUINO_EVENT_WIFI_AP_STOP:
       _apActive = false;
+      _apNotice.stopped();
       _dns.stop();
       break;
 
@@ -660,6 +703,13 @@ void WifiManager::loop() {
   Event e;
   while (_events != nullptr && xQueueReceive(_events, &e, 0) == pdTRUE) {
     handleEvent(e);
+  }
+  // The AP is announced here, not per start event: hosted WiFi restarts the
+  // AP while softAP() configures it (start, stop, start), which gave two
+  // notices for one AP. See ApNotice.h.
+  if (_apNotice.due()) {
+    LOG_I("wifi: AP \"%s\" up at %s (%s)", _apSsid, WiFi.softAPIP().toString().c_str(), _apPass[0] ? "wpa2" : "open");
+    notify(_onApStarted);
   }
 
   const uint32_t now = millis();

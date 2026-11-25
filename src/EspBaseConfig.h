@@ -5,7 +5,7 @@
 
 #include "Log.h"
 
-#define ESPBASE_VERSION "1.2.0"
+#define ESPBASE_VERSION "1.3.0"
 
 #ifndef FW_VERSION
 #define FW_VERSION "0.0.0"
@@ -38,6 +38,7 @@ struct EspBaseConfig {
   // Web console ------------------------------------------------------------
   uint16_t httpPort = 80;
   uint8_t maxWsClients = 4;          // oldest client is dropped beyond this
+  String apLandingTab = "";          // tab the page opens on while the device is its own AP (fallback or AP mode): "" = Console, "wifi", "settings"
   String webPassword = "";           // console, API and POST /update password (HTTP digest, user "admin"), 8..63 chars; empty = open. Key "web_pass" overrides it.
 
   // OTA ----------------------------------------------------------------------

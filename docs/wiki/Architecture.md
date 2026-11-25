@@ -9,19 +9,21 @@
 | `EspBase` | Facade. Owns the modules, runs `begin()` and `loop()`, built-in commands, status LED, deferred reboot. | `EspBase.*` |
 | `Log` | `LOG_x` macros, serial sink, ring buffer. | `Log.*` |
 | `ConfigStore` | Mutex protected wrapper over `Preferences` (NVS). | `ConfigStore.*` |
-| `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*` |
+| `ProjectSettings` | A project's own settings: definitions, values through `ConfigStore`, hand-over from other tasks, change callbacks. | `ProjectSettings.*`, `SettingsCheck.h` |
+| `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*`, `WifiNaming.h`, `ApNotice.h` |
 | `WebConsole` | HTTP server, WebSocket, command registry, `/api` routes, embedded page. | `WebConsole.*`, `web/index_html_gz.h` |
 | `OtaUpdater` | ArduinoOTA and `POST /update`. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
 | `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
 | `ChipInfo` | The only place with `SOC_*` and `CONFIG_IDF_TARGET` checks. | `ChipInfo.h` |
 
-Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.apps()` and `base.ota()`.
+Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.settings()`, `base.apps()` and `base.ota()`.
 
 `ChipInfo` is usable from project code too:
 
 ```cpp
 ChipInfo::cores();      // 1 or 2
 ChipInfo::hasBle();     // SOC_BLE_SUPPORTED
+ChipInfo::hasOwnWifi(); // SOC_WIFI_SUPPORTED: false where WiFi is a second chip (ESP32-P4)
 ChipInfo::hasUsbCdc();  // USB Serial/JTAG or USB OTG present
 ChipInfo::name();       // "esp32s3"
 ChipInfo::appCore();    // core the Arduino loop runs on: 1 on dual core, 0 on single core
@@ -55,12 +57,13 @@ What this means for your code:
 `base.loop()` runs these in order, and none of them waits:
 
 1. `WifiManager` starts the driver on the first call, drains WiFi events, applies queued credential and setting changes, runs its timers.
-2. `WebConsole` handles WebSocket connects, runs pending commands, streams new log lines, drops the oldest client beyond the limit.
-3. `AppManager` delivers input, ticks apps, draws, applies one navigation transition, checks the idle timeout.
-4. `OtaUpdater` runs `ArduinoOTA.handle()` and reboots after a finished web upload.
-5. Status LED and any scheduled reboot.
+2. `ProjectSettings` applies the changes the web server handed over and runs the change callbacks.
+3. `WebConsole` handles WebSocket connects, runs pending commands, streams new log lines, drops the oldest client beyond the limit.
+4. `AppManager` delivers input, ticks apps, draws, applies one navigation transition, checks the idle timeout.
+5. `OtaUpdater` runs `ArduinoOTA.handle()` and reboots after a finished web upload.
+6. Status LED and any scheduled reboot.
 
-`begin()` returns within a few milliseconds. The WiFi driver starts on the first `loop()` call.
+`begin()` returns within a few milliseconds. The WiFi driver starts on the first `loop()` call. Where WiFi is a second chip that one call takes about 2 s (measured on an M5Stack Tab5), because the other chip is brought up first.
 
 ## Rules
 
@@ -81,7 +84,7 @@ Measured on the bundled example:
 | --- | --- |
 | Static RAM | 44 to 54 KB depending on the chip |
 | Flash | 1.08 to 1.24 MB |
-| Web page | about 6 KB gzipped, budget 20 KB |
+| Web page | about 8 KB gzipped, budget 20 KB |
 | Log ring | 4 KB (`logBufferBytes`) |
 | WebSocket clients | 4 (`maxWsClients`) |
 

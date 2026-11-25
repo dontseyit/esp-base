@@ -22,9 +22,9 @@ platformio.ini        builds the example against the library for every target
 
 ```sh
 pio run                          # tier 1: esp32, esp32s3, esp32c3
-pio run -e esp32c6 -e esp32s2    # tier 2
+pio run -e esp32c6 -e esp32s2 -e esp32p4    # tier 2
 pio run -e esp32s3 -t upload -t monitor
-pio test -e native               # host unit tests for the request checks in WebGuard.h
+pio test -e native               # host unit tests of the pure headers (WebGuard.h, SettingsCheck.h, WifiNaming.h, ApNotice.h)
 ```
 
 `platformio.ini` links the library into the example with `symlink://.`, so edits in `src/` are picked up directly.
@@ -44,7 +44,7 @@ Before a release, check on each tier 1 board: the AP appears when no network is 
 | Job | Does |
 | --- | --- |
 | checks | `build_web.py --check` and the host unit tests |
-| build | all five targets; fails on any compiler warning from `src/` or `examples/` |
+| build | all six targets; fails on any compiler warning from `src/` or `examples/` |
 | release | on `X.Y.Z` tags, attaches `esp-base-minimal-<env>.bin` for each target to the GitHub release |
 
 Actions are pinned to commit SHAs, the default token is read-only, and PlatformIO and the platform are pinned to fixed versions.

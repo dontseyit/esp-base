@@ -58,6 +58,8 @@ Values are stored in milliseconds. With several unreachable networks, the first 
 - SSID `<apSsidPrefix>-XXXX` from the last two MAC bytes, address `192.168.4.1`, up to 4 clients. Open, or WPA2 when `ap_pass` has 8 to 63 characters.
 - A DNS server answers every name with the AP address. Connectivity probes from Android, Apple, Windows and Firefox get a redirect to the portal. Requests addressed to the AP IP are served normally.
 - The chip has one radio. While the station scans or connects, the AP pauses for a second or two and follows the router's channel, so portal clients may drop briefly during retries.
+- `apSsid()` is complete after `begin()` on a chip with WiFi of its own. Where WiFi is a second chip (`ChipInfo::hasOwnWifi()` is false) the address is only there once the driver has started, so `apSsid()` is the prefix alone until the first `loop()`. An `onApStarted` callback has the full name on every chip.
+- `onApStarted` runs once for each time the library brings the AP up. A chip whose WiFi is a second chip restarts the AP while it is being configured; that is still one notice.
 
 ## Scans
 

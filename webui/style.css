@@ -96,7 +96,11 @@ td { padding: .3rem .5rem; border-bottom: 1px solid var(--line); }
 tr.net { cursor: pointer; }
 tr.net:hover { background: var(--panel); }
 progress { width: 100%; }
+::placeholder { color: var(--muted); opacity: 1; }
+
 @media (max-width: 640px) {
   .stats { display: none; }
-  .tabs { margin-left: 0; }
+  .tabs { margin-left: 0; flex-wrap: wrap; }
+  /* A phone: 16 px keeps iOS from zooming the page on focus, 44 px is a finger. */
+  input, select, button { font-size: 16px; min-height: 44px; }
 }
