@@ -66,6 +66,8 @@ static const SettingDef kSettings[] = {
     {.key = "api_key", .label = "API key", .kind = SettingKind::Secret},
     {.key = "units", .label = "Units", .kind = SettingKind::Choice, .def = "metric", .choices = "metric,imperial"},
     {.key = "city", .label = "City", .def = "Berlin", .hint = "a town", .maxLen = 40},
+    {.key = "limit", .label = "Limit (C)", .kind = SettingKind::Number, .def = "21.5", .min = 5, .max = 35, .decimals = 1},
+    {.key = "night_off", .label = "Off at night", .kind = SettingKind::Bool},
 };
 for (const SettingDef& d : kSettings) base.settings().add(d);
 base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key); });
@@ -75,15 +77,18 @@ base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key);
 | --- | --- | --- |
 | `key` | | The NVS key: 1 to 15 of `a-z`, `0-9` and `_`, and not one of the library's keys. |
 | `label` | | Shown on the page. |
-| `kind` | `Text` | `Text`, `Secret` or `Choice`. A secret is write-only: the page, the API and the console tell only whether it is set. |
-| `def` | `""` | The value while nothing is stored. A `Choice` needs one of its choices here. |
+| `kind` | `Text` | `Text`, `Secret`, `Choice`, `Number` or `Bool`. A secret is write-only: the page, the API and the console tell only whether it is set. |
+| `def` | `""` | The value while nothing is stored. A `Choice` needs one of its choices here and a `Number` a number in its range. A `Bool` without one is `"false"`. |
 | `choices` | `""` | `Choice` only: `"a,b,c"`. |
 | `hint` | `""` | The field's placeholder on the page. |
 | `maxLen` | `63` | Bytes, 1 to 255. |
+| `min`, `max` | about ±2.1 billion | `Number` only: the range, inclusive. |
+| `decimals` | `0` | `Number` only: digits allowed after the point, 0 to 6. 0 means whole numbers. |
 | `validate` | none | `bool (*)(const String& value, String& err)`, a check of your own. It runs on the loop task and on the web server's task, so it must not touch state. |
 
 - `add()` returns false and logs an error for a bad or duplicate definition, and for the 25th.
-- `get(key)` returns the stored value or the default. It also returns the default for a stored value the definition no longer allows, after an update changed the choices or `maxLen`. `set()` and `clear()` are for the loop task; `queue()` hands changes over from any other task.
+- Values are stored as text. A `Number` is always in plain form (`-12`, `21.5`, with no `+`, exponent or spaces) and a `Bool` is `"true"` or `"false"`. So `getInt(key)`, `getFloat(key)` and `getBool(key)` read them without any parsing of your own. `config set limit 30` and `config set night_off true` work on the console.
+- `get(key)` returns the stored value or the default. It also returns the default for a stored value the definition no longer allows, after an update changed the choices, `maxLen` or the range. `set()` and `clear()` are for the loop task; `queue()` hands changes over from any other task.
 - `onChange` callbacks run on the loop task after a value changed. Do not log a secret's value there.
 - The page shows the settings in a **Settings** tab, which is there only when at least one is defined. The console lists them with `settings`, and `config get|set|list` accept their keys.
 - The values are in the `espbase` namespace, so `factory-reset` erases them with everything else.

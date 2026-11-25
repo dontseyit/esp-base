@@ -90,6 +90,11 @@ button { cursor: pointer; }
 button.primary { background: var(--accent); color: #041018; border-color: transparent; font-weight: 600; }
 .stack { display: flex; flex-direction: column; gap: .75rem; max-width: 28rem; }
 .stack label { display: flex; flex-direction: column; gap: .25rem; color: var(--muted); }
+/* A Bool: the box before its label (the label text stays first in the DOM, for error messages). */
+.stack label.check { flex-direction: row; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; color: var(--text); cursor: pointer; }
+.stack label.check input { order: -1; }
+.stack label.check .hint { flex-basis: 100%; }
+input[type="checkbox"] { width: 1.1rem; height: 1.1rem; min-height: 0; padding: 0; accent-color: var(--accent); }
 .row { display: flex; gap: .5rem; }
 .msg { min-height: 1.2em; margin: 0; color: var(--muted); }
 .msg.err { color: var(--err); }
@@ -109,4 +114,5 @@ progress { width: 100%; }
   /* A phone: 16 px keeps iOS from zooming the page on focus, 44 px is a finger. */
   input, select, button { font-size: 16px; min-height: 44px; }
   a.tab { display: flex; align-items: center; min-height: 44px; font-size: 16px; }
+  .stack label.check { min-height: 44px; }  /* the whole label is the target, not the small box */
 }

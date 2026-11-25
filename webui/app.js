@@ -274,7 +274,8 @@
   let secretKeys = null;  // for the console's history, which must not keep them; null until the device names them
   let saving = false;
   const settingsFields = () => [...$('#settingsform').querySelectorAll('[name]')];
-  const settingsDirty = () => settingsFields().some((f) => f.value !== shown[f.name]);
+  const fieldValue = (f) => (f.type === 'checkbox' ? String(f.checked) : f.value);  // a Bool is "true" or "false"
+  const settingsDirty = () => settingsFields().some((f) => fieldValue(f) !== shown[f.name]);
   // True while the page is served over the device's own access point and that
   // access point closes as soon as the station connects (mode "sta").
   const viaClosingAp = () => !!(lastInfo && lastInfo.wifi.ap && lastInfo.wifi.mode === 'sta');
@@ -306,6 +307,17 @@
             o.textContent = c;
             f.appendChild(o);
           });
+        } else if (s.kind === 'bool') {
+          f = document.createElement('input');
+          f.type = 'checkbox';
+          label.className = 'check';
+        } else if (s.kind === 'number') {
+          // The browser keeps the field to the range and the decimals before it posts.
+          f = document.createElement('input');
+          f.type = 'number';
+          f.min = s.min;
+          f.max = s.max;
+          f.step = s.decimals ? String(10 ** -s.decimals) : '1';
         } else {
           f = document.createElement('input');
           f.maxLength = s.maxLen;
@@ -330,20 +342,22 @@
       if (s.kind === 'secret') {
         f.value = '';
         f.placeholder = s.set ? 'saved, type to replace' : 'not set yet';
+      } else if (s.kind === 'bool') {
+        f.checked = s.value === 'true';
       } else {
         f.value = s.value;
       }
-      shown[s.key] = f.value;
+      shown[s.key] = fieldValue(f);
     });
   }
   $('#settingsform').addEventListener('input', () => msg('#settingsmsg', ''));
   $('#settingsform').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (saving) return;
-    const fields = settingsFields().filter((f) => f.value !== shown[f.name]);
+    const fields = settingsFields().filter((f) => fieldValue(f) !== shown[f.name]);
     if (!fields.length) { msg('#settingsmsg', 'Nothing to save.'); return; }
     const body = {};
-    fields.forEach((f) => { body[f.name] = f.value; });
+    fields.forEach((f) => { body[f.name] = fieldValue(f); });
     const btn = $('#settingsform button[type="submit"]');
     saving = true;
     btn.disabled = true;
@@ -360,7 +374,7 @@
       }
       fields.forEach((f) => {
         if (f.type === 'password') { f.placeholder = 'saved, type to replace'; f.value = ''; }
-        shown[f.name] = f.value;
+        shown[f.name] = fieldValue(f);
       });
       msg('#settingsmsg', viaClosingAp() ? 'Saved. Next: open the WiFi tab and add your home network.' : 'Saved.');
       // The device applies a change a moment later; then show what it holds

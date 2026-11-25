@@ -8,6 +8,10 @@
 //   base.settings().onChange([](const char* key) { /* loop task */ });
 //   String key = base.settings().get("map_key");
 //
+//   static const SettingDef kLimit = {.key = "limit", .label = "Limit (C)", .kind = SettingKind::Number,
+//                                     .def = "21.5", .min = 5, .max = 35, .decimals = 1};
+//   double limit = base.settings().getFloat("limit");
+//
 // The library stores the values through ConfigStore, shows them in a tab of
 // the web page (GET/POST /api/settings) and in the "settings" and "config"
 // commands. A Secret is write-only everywhere: only whether it is set is told.
@@ -29,13 +33,17 @@ struct SettingDef {
   const char* key = "";      // ConfigStore key: 1..15 of a-z, 0-9, '_', and not one of the library's own
   const char* label = "";    // shown on the page
   SettingKind kind = SettingKind::Text;
-  const char* def = "";      // the value while nothing is stored
+  const char* def = "";      // the value while nothing is stored; a Number needs one, a Bool without one is "false"
   const char* choices = "";  // Choice only: "a,b,c"
   const char* hint = "";     // placeholder on the page
   uint16_t maxLen = 63;      // bytes, 1..255
   // Optional extra check. It must be pure: it runs on the loop task and on the
   // web server's task.
   bool (*validate)(const String& value, String& err) = nullptr;
+  // Number only: the range, and the digits allowed after the point (0 = whole numbers, at most 6).
+  double min = -2147483648.0;
+  double max = 2147483647.0;
+  uint8_t decimals = 0;
 };
 
 class ProjectSettings {
@@ -60,6 +68,11 @@ class ProjectSettings {
   // choices or maxLen) gives the default too.
   String get(const char* key);
   bool isSet(const char* key);
+  // get() read as its kind. The checks keep a Number in the plain form and a
+  // Bool "true" or "false", so these never see anything else.
+  long getInt(const char* key) { return get(key).toInt(); }        // a Number with decimals = 0
+  double getFloat(const char* key) { return get(key).toDouble(); }  // a Number
+  bool getBool(const char* key) { return get(key) == "true"; }      // a Bool
 
   // Any task. err becomes "<key>: <reason>".
   bool check(const char* key, const String& value, String& err) const;

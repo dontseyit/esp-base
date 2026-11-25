@@ -25,6 +25,16 @@ constexpr uint32_t kTicketMs = 30000;        // WebSocket ticket lifetime
 constexpr uint8_t kMaxAuthFailures = 5;      // then logins are refused for kLockoutMs
 constexpr uint32_t kLockoutMs = 30000;
 
+const char* kindName(SettingKind kind) {
+  switch (kind) {
+    case SettingKind::Secret: return "secret";
+    case SettingKind::Choice: return "choice";
+    case SettingKind::Number: return "number";
+    case SettingKind::Bool: return "bool";
+    default: return "text";
+  }
+}
+
 const char* resetReasonName(esp_reset_reason_t r) {
   switch (r) {
     case ESP_RST_POWERON: return "power-on";
@@ -209,7 +219,7 @@ void WebConsole::setupRoutes() {
       JsonObject e = list.add<JsonObject>();
       e["key"] = d.key;
       e["label"] = d.label;
-      e["kind"] = d.kind == SettingKind::Secret ? "secret" : d.kind == SettingKind::Choice ? "choice" : "text";
+      e["kind"] = kindName(d.kind);
       if (d.kind != SettingKind::Secret) {
         e["value"] = _settings->get(d.key);
       }
@@ -232,12 +242,19 @@ void WebConsole::setupRoutes() {
         e["hint"] = d.hint;
       }
       e["maxLen"] = d.maxLen;
+      if (d.kind == SettingKind::Number) {
+        e["min"] = d.min;
+        e["max"] = d.max;
+        e["decimals"] = d.decimals;
+      }
     }
     response->setLength();
     request->send(response);
   });
 
-  // {"<key>": "<value>" | null, ...}: one bad pair refuses the whole request.
+  // {"<key>": "<value>" | <number> | true | false | null, ...}: one bad pair
+  // refuses the whole request. A number or true/false counts as its JSON text,
+  // so a page of the project's own can post {"limit": 21.5, "auto": true}.
   // null clears a value; "" clears a Text or Choice and leaves a Secret as it
   // is (the form sends an untouched secret field empty). This runs on the web
   // server's task: it only checks, then hands the changes to the loop task,
@@ -258,11 +275,17 @@ void WebConsole::setupRoutes() {
           break;
         }
         const bool isNull = p.value().isNull();
-        if (!isNull && !p.value().is<const char*>()) {
-          err = String(def->key) + ": must be text";
+        String value;
+        if (p.value().is<const char*>()) {
+          value = p.value().as<const char*>();
+        } else if (p.value().is<bool>()) {
+          value = p.value().as<bool>() ? "true" : "false";
+        } else if (p.value().is<double>()) {
+          serializeJson(p.value(), value);
+        } else if (!isNull) {
+          err = String(def->key) + ": must be text, a number, true or false";
           break;
         }
-        const String value = isNull ? String() : String(p.value().as<const char*>());
         if (!isNull && value.isEmpty() && def->kind == SettingKind::Secret) {
           continue;
         }

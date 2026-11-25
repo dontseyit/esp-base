@@ -101,10 +101,16 @@ void setup() {
                   "<p><a href='/api/state'>/api/state</a> &middot; <a href='/'>back to the console</a></p>");
   });
 
-  // A setting of the project's own. It shows in the page's Settings tab and
-  // in the "settings" and "config" commands.
-  static const SettingDef kGreeting = {.key = "greeting", .label = "Greeting", .def = "hello", .hint = "any text", .maxLen = 20};
-  base.settings().add(kGreeting);
+  // Settings of the project's own. They show in the page's Settings tab and in
+  // the "settings" and "config" commands; loop() uses the last two.
+  static const SettingDef kSettings[] = {
+      {.key = "greeting", .label = "Greeting", .def = "hello", .hint = "any text", .maxLen = 20},
+      {.key = "uptime_log", .label = "Log the uptime", .kind = SettingKind::Bool},
+      {.key = "uptime_every", .label = "Every (seconds)", .kind = SettingKind::Number, .def = "60", .min = 5, .max = 3600},
+  };
+  for (const SettingDef& d : kSettings) {
+    base.settings().add(d);
+  }
 
   base.console().addCommand("led", ledCommand, "led <on|off>");
 
@@ -135,11 +141,13 @@ void loop() {
     lastStatus = millis();
     base.status().set("uptime", String(millis() / 1000) + " s");
     base.status().set("heap", String(ESP.getFreeHeap() / 1024) + " KB");
-  }
 
-  static uint32_t lastTick = 0;
-  if (millis() - lastTick >= 60000) {
-    lastTick = millis();
-    LOG_D("app: uptime %lu s, heap %lu", static_cast<unsigned long>(millis() / 1000), static_cast<unsigned long>(ESP.getFreeHeap()));
+    // Read here, once a second, not on every pass: each read is an NVS lookup.
+    static uint32_t lastLog = 0;
+    if (base.settings().getBool("uptime_log") &&
+        millis() - lastLog >= static_cast<uint32_t>(base.settings().getInt("uptime_every")) * 1000) {
+      lastLog = millis();
+      LOG_I("app: uptime %lu s, heap %lu", static_cast<unsigned long>(millis() / 1000), static_cast<unsigned long>(ESP.getFreeHeap()));
+    }
   }
 }

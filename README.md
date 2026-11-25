@@ -6,7 +6,7 @@ A reusable Arduino library that gives every ESP32 project the same baseline out 
 - A browser console served from flash, with live logs, commands, WiFi setup and firmware upload. It is the default portal, and a project can move it or turn it off to serve its own.
 - OTA updates through espota or the browser, with optional passwords, and a rollback when an updated firmware resets in its first 30 s.
 - Persistent settings over NVS, and structured logging with a ring buffer.
-- A Settings tab on the page for your project's own settings, with write-only secrets.
+- A Settings tab on the page for your project's own settings: text, numbers with a range, on/off switches, choices, and write-only secrets.
 - A Device tab for your project's values and buttons, and a link to a page of your own under `/app/`, behind the same login.
 - An app framework with a navigation stack for building the product on top. Headless devices compile it out with `-DESPBASE_NO_APPS`.
 

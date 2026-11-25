@@ -13,6 +13,10 @@ bool libraryKey(const char* key) {
   }
   return false;
 }
+
+const char* errorOf(const SettingDef& d, const char* value) {
+  return SettingsCheck::valueError(d.kind, d.choices, d.maxLen, value, d.min, d.max, d.decimals);
+}
 }  // namespace
 
 void ProjectSettings::begin(ConfigStore& store) {
@@ -23,29 +27,42 @@ void ProjectSettings::begin(ConfigStore& store) {
 }
 
 bool ProjectSettings::add(const SettingDef& def) {
+  SettingDef d = def;
+  if (d.kind == SettingKind::Bool && d.def != nullptr && *d.def == '\0') {
+    d.def = "false";
+  }
   const char* why = nullptr;
-  if (def.label == nullptr || def.def == nullptr || def.choices == nullptr || def.hint == nullptr) {
+  const char* badDefault = nullptr;
+  if (d.label == nullptr || d.def == nullptr || d.choices == nullptr || d.hint == nullptr) {
     why = "label, def, choices and hint must not be null";
-  } else if (!SettingsCheck::validKey(def.key)) {
+  } else if (!SettingsCheck::validKey(d.key)) {
     why = "the key must be 1..15 of a-z, 0-9 and '_'";
-  } else if (libraryKey(def.key)) {
+  } else if (libraryKey(d.key)) {
     why = "the key is one of the library's own";
-  } else if (find(def.key) != nullptr) {
+  } else if (find(d.key) != nullptr) {
     why = "the key is already defined";
   } else if (_count >= kMaxSettings) {
     why = "too many settings";
-  } else if (def.maxLen < 1 || def.maxLen > 255) {
+  } else if (d.maxLen < 1 || d.maxLen > 255) {
     why = "maxLen must be 1..255";
-  } else if (def.kind == SettingKind::Choice && (def.choices == nullptr || *def.choices == '\0')) {
+  } else if (d.kind == SettingKind::Choice && *d.choices == '\0') {
     why = "a Choice needs choices";
-  } else if (def.kind == SettingKind::Choice || *def.def != '\0') {
-    why = SettingsCheck::valueError(def.kind, def.choices, def.maxLen, def.def);  // an empty default is fine, but for a Choice
+  } else if (d.kind == SettingKind::Number && !(d.min <= d.max)) {
+    why = "a Number needs min <= max";
+  } else if (d.kind == SettingKind::Number && d.decimals > 6) {
+    why = "decimals must be 0..6";
+  } else if ((d.kind != SettingKind::Text && d.kind != SettingKind::Secret) || *d.def != '\0') {
+    badDefault = errorOf(d, d.def);  // only Text and Secret may have an empty default
   }
-  if (why != nullptr) {
-    LOG_E("settings: \"%s\" refused: %s", def.key != nullptr ? def.key : "", why);
+  if (why != nullptr || badDefault != nullptr) {
+    if (badDefault != nullptr) {
+      LOG_E("settings: \"%s\" refused: the default \"%s\": %s", d.key, d.def, badDefault);
+    } else {
+      LOG_E("settings: \"%s\" refused: %s", d.key != nullptr ? d.key : "", why);
+    }
     return false;
   }
-  _defs[_count] = def;
+  _defs[_count] = d;
   ++_count;  // atomic: published after the copy
   return true;
 }
@@ -69,7 +86,7 @@ String ProjectSettings::get(const char* key) {
     return String();
   }
   String value = _store->getString(def->key, def->def);
-  if (SettingsCheck::valueError(def->kind, def->choices, def->maxLen, value.c_str()) != nullptr) {
+  if (errorOf(*def, value.c_str()) != nullptr) {
     return String(def->def);  // stored by a firmware whose definition allowed it
   }
   return value;
@@ -86,9 +103,12 @@ bool ProjectSettings::check(const char* key, const String& value, String& err) c
     err = String(key != nullptr ? key : "") + ": unknown setting";
     return false;
   }
-  const char* why = SettingsCheck::valueError(def->kind, def->choices, def->maxLen, value.c_str());
+  const char* why = errorOf(*def, value.c_str());
   if (why != nullptr) {
     err = String(def->key) + ": " + why;
+    if (def->kind == SettingKind::Number) {
+      err += " (" + String(def->min, static_cast<unsigned int>(def->decimals)) + " to " + String(def->max, static_cast<unsigned int>(def->decimals)) + ")";
+    }
     return false;
   }
   String detail;
