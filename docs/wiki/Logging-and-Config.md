@@ -104,6 +104,7 @@ base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key);
 | `maxWsClients` | `4` | Console clients before the oldest is dropped. |
 | `apLandingTab` | `""` | The tab the page opens on while the device is its own access point: `""` (Console), `"wifi"` or `"settings"`. |
 | `webPassword` | `""` | Console, API and upload password (user `admin`), 8 to 63 characters; empty = open. |
-| `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch. The password protects espota, and `POST /update` while no `webPassword` is set. |
+| `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch. The password protects espota, and `POST /update` while no `webPassword` is set. OTA stays off on a partition table with one app slot. |
+| `otaTrialMs` | `30000` | How long an updated firmware must run before it is kept. A reset sooner returns to the previous firmware. `0` keeps it once `loop()` runs. |
 | `logOutput`, `logBufferBytes`, `logLevel` | `nullptr`, `4096`, `Info` | Log sinks and default level. |
 | `fwVersion` | `FW_VERSION`, else `"0.0.0"` | Shown by `info` and `/api/info`. Pass `-DFW_VERSION=\"x.y.z\"`. |

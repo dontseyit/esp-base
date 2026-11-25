@@ -12,7 +12,7 @@
 | `ProjectSettings` | A project's own settings: definitions, values through `ConfigStore`, hand-over from other tasks, change callbacks. | `ProjectSettings.*`, `SettingsCheck.h` |
 | `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*`, `WifiNaming.h`, `ApNotice.h` |
 | `WebConsole` | HTTP server, WebSocket, command registry, `/api` routes, embedded page. | `WebConsole.*`, `web/index_html_gz.h` |
-| `OtaUpdater` | ArduinoOTA and `POST /update`. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
+| `OtaUpdater` | ArduinoOTA, `POST /update` and the trial that rolls back a failing update. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
 | `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. Removed by `-DESPBASE_NO_APPS`. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
 | `ChipInfo` | The only place with `SOC_*` and `CONFIG_IDF_TARGET` checks. | `ChipInfo.h` |
 
@@ -60,7 +60,7 @@ What this means for your code:
 2. `ProjectSettings` applies the changes the web server handed over and runs the change callbacks.
 3. `WebConsole` handles WebSocket connects, runs pending commands, streams new log lines, drops the oldest client beyond the limit.
 4. `AppManager` delivers input, ticks apps, draws, applies one navigation transition, checks the idle timeout.
-5. `OtaUpdater` runs `ArduinoOTA.handle()` and reboots after a finished web upload.
+5. `OtaUpdater` keeps an updated firmware once its trial is over, runs `ArduinoOTA.handle()` and reboots after a finished web upload.
 6. Status LED and any scheduled reboot.
 
 `begin()` returns within a few milliseconds. The WiFi driver starts on the first `loop()` call. Where WiFi is a second chip that one call takes about 2 s (measured on an M5Stack Tab5), because the other chip is brought up first.

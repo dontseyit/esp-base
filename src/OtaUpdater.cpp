@@ -5,9 +5,18 @@
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <Update.h>
+#include <esp_ota_ops.h>
 
 #include "Log.h"
 #include "WebConsole.h"
+
+// Arduino keeps an updated image before setup() runs, so a firmware that
+// crashes in setup() or loop() boot-loops instead of rolling back. Returning
+// true leaves the decision to OtaUpdater. The bootloader of every supported
+// core is built with rollback.
+extern "C" bool verifyRollbackLater() {
+  return true;
+}
 
 namespace {
 constexpr uint16_t kOtaPort = 3232;
@@ -23,14 +32,22 @@ const char* otaErrorName(ota_error_t err) {
     default: return "unknown";
   }
 }
+
+// A second app slot to write. A one-app partition table (huge_app.csv,
+// no_ota.csv, max_app_4MB.csv) has none: the next slot is the running one.
+bool hasUpdateSlot() {
+  const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
+  return next != nullptr && next != esp_ota_get_running_partition();
+}
 }  // namespace
 
 void OtaUpdater::begin(const EspBaseConfig& cfg, WebConsole& console, const String& hostname) {
   _console = &console;
   _password = cfg.otaPassword;
-  _enabled = cfg.otaEnabled;
+  startTrial(cfg.otaTrialMs);  // even with OTA off: the previous firmware may have written this one
+  _enabled = cfg.otaEnabled && hasUpdateSlot();
   if (!_enabled) {
-    LOG_I("ota: disabled");
+    LOG_I("ota: %s", cfg.otaEnabled ? "off, the partition table has one app slot (update over USB)" : "disabled");
     return;
   }
 
@@ -42,6 +59,7 @@ void OtaUpdater::begin(const EspBaseConfig& cfg, WebConsole& console, const Stri
     ArduinoOTA.setPassword(_password.c_str());
   }
   ArduinoOTA.onStart([this]() {
+    keep();  // before the first write: the other slot is about to stop being a fallback
     _otaActive = true;
     _lastPct = 0;
     LOG_I("ota: espota %s update started", ArduinoOTA.getCommand() == U_FLASH ? "firmware" : "filesystem");
@@ -92,7 +110,40 @@ void OtaUpdater::onNetworkUp(bool mdnsRunning) {
   }
 }
 
+// An updated firmware boots on trial: the bootloader returns to the previous
+// one on the next reset unless the trial ends here first.
+// ponytail: "ran trialMs without a reset" is the whole health check. A project
+// that needs more (sensors up, server reached) sets otaTrialMs past its own checks.
+void OtaUpdater::startTrial(uint32_t trialMs) {
+  const esp_partition_t* failed = esp_ota_get_last_invalid_partition();
+  if (failed != nullptr) {
+    LOG_W("ota: the firmware written to %s reset during its trial and was rolled back", failed->label);
+  }
+  esp_ota_img_states_t state;
+  _onTrial = esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY;
+  _trialEndsAt = trialMs;
+  if (_onTrial && trialMs > 0) {
+    LOG_I("ota: new firmware on trial for %lu s; a reset before then returns to the previous firmware",
+          static_cast<unsigned long>(trialMs / 1000));
+  }
+}
+
+void OtaUpdater::keep() {
+  if (!_onTrial.exchange(false)) {  // any task; the first caller writes
+    return;
+  }
+  const esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+  if (err == ESP_OK) {
+    LOG_I("ota: new firmware kept");
+  } else {
+    LOG_E("ota: could not keep the new firmware (%s)", esp_err_to_name(err));
+  }
+}
+
 void OtaUpdater::loop() {
+  if (_onTrial && millis() >= _trialEndsAt) {
+    keep();
+  }
   if (!_enabled) {
     return;
   }
@@ -147,6 +198,7 @@ void OtaUpdater::handleUploadChunk(AsyncWebServerRequest* request, const String&
       }
     });
     LOG_I("ota: web upload \"%s\" from %s", filename.c_str(), request->client()->remoteIP().toString().c_str());
+    keep();  // the upload overwrites the other slot, the only fallback while this firmware is on trial
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
       _webError = Update.errorString();
       LOG_E("ota: begin failed: %s", _webError.c_str());

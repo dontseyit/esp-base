@@ -8,6 +8,8 @@
 | C3 or C6 build fails around `Serial` or `USBSerial` | `ARDUINO_USB_CDC_ON_BOOT` without the USB mode flag | add `-DARDUINO_USB_MODE=1` |
 | The build pulls in ESPAsyncTCP or RPAsyncTCP | library compatibility mode is not strict | `lib_compat_mode = strict` and `lib_ldf_mode = chain` |
 | OTA fails with "not enough space" | the app slot is too small | `board_build.partitions = min_spiffs.csv` or a larger table |
+| After an update the device runs the old firmware | the new one reset during its trial; the log says `ota: the firmware written to ... was rolled back` | find the crash in the serial log; keep the device powered for the first 30 s |
+| No **Update** tab, log says `ota: off, the partition table has one app slot` | a one-app partition table | update over USB, or use a two-slot table such as `min_spiffs.csv` |
 | espota cannot find the device | mDNS only runs while the station is connected | use the IP; on the AP use `192.168.4.1`; allow UDP 3232 |
 | The captive portal does not pop up | the phone stays on mobile data or cached the check | open `http://192.168.4.1/` by hand |
 | On an ESP32-P4 the log says `captive DNS failed to start` and the portal never pops up | before 1.3.0 the captive DNS was started in a form the core disables on a chip without WiFi of its own | update to 1.3.0 |

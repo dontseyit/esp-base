@@ -31,7 +31,7 @@ build_flags = ${env.build_flags} -DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=
 Why these lines:
 
 - `lib_compat_mode = strict` and `lib_ldf_mode = chain` keep the ESP8266 and RP2040 TCP backends that ESPAsyncWebServer declares out of an ESP32 build.
-- `min_spiffs.csv` gives two 1.9 MB app slots. A typical build is 1.1 to 1.25 MB and OTA needs two slots.
+- `min_spiffs.csv` gives two 1.9 MB app slots. A typical build is 1.1 to 1.25 MB, and OTA needs two slots because it writes the one it is not running from. If you will always update over USB, a one-slot table such as `huge_app.csv` (3 MB app) or `max_app_4MB.csv` (3.9 MB) gives that space back. OTA then switches itself off, and `-DESPBASE_NO_OTA` also removes its code. On 8 MB and 16 MB flash, two slots cost little.
 - The USB flags route `Serial` to the USB port. The C3 and C6 also need `ARDUINO_USB_MODE=1`.
 
 ## 2. Minimal sketch
@@ -76,6 +76,8 @@ All config fields are listed in [Logging and config](Logging-and-Config.md#espba
 | curl | `curl -u admin:<password> -F "firmware=@.pio/build/esp32/firmware.bin" http://my-device.local/update`, add `--digest` when a console password is set |
 
 The device writes the other app slot, verifies the image and reboots into it. Uploads take the console password when one is set, otherwise `cfg.otaPassword`. A wrong password is rejected before anything is written.
+
+The new firmware boots on trial. If it resets within `cfg.otaTrialMs` (30 s by default), whether from a crash, a watchdog or a power cut, the bootloader goes back to the previous firmware and the log says so on the next boot. `reboot` from the console, or `base.reboot()`, ends the trial early and keeps the new firmware.
 
 ## Build flags
 

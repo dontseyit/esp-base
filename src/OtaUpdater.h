@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 
+#include <atomic>
+
 #include "EspBaseConfig.h"
 
 class WebConsole;
@@ -20,10 +22,16 @@ class OtaUpdater {
   void onNetworkUp(bool mdnsRunning);
   void loop();
 
+  // false when cfg.otaEnabled is off or the partition table has one app slot.
   bool enabled() const { return _enabled; }
   bool inProgress() const { return _otaActive || _owner != nullptr; }
+  // An updated firmware is on trial for cfg.otaTrialMs: a reset before then
+  // returns to the previous one. keep() ends the trial now, from any task.
+  // EspBase::reboot() and the start of every upload call it.
+  void keep();
 
  private:
+  void startTrial(uint32_t trialMs);
   bool authorized(AsyncWebServerRequest* request);
   void handleUploadChunk(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final);
   void handleUploadDone(AsyncWebServerRequest* request);
@@ -39,6 +47,8 @@ class OtaUpdater {
   String _webError;
   uint32_t _rebootAt = 0;
   uint8_t _lastPct = 0;
+  std::atomic<bool> _onTrial{false};
+  uint32_t _trialEndsAt = 0;  // millis()
 };
 
 #endif  // ESPBASE_NO_OTA

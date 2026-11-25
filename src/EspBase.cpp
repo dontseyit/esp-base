@@ -68,6 +68,7 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
   _console.begin(_cfg, _wifi, _store.getString(EspBaseKeys::WebPass, _cfg.webPassword));
 #ifndef ESPBASE_NO_OTA
   _ota.begin(_cfg, _console, _wifi.hostname());
+  _cfg.otaEnabled = _ota.enabled();  // off on a one-slot partition table; info and /api/info report it
   _wifi.onConnected([this]() { _ota.onNetworkUp(_wifi.mdnsRunning()); });
   _wifi.onApStarted([this]() { _ota.onNetworkUp(_wifi.mdnsRunning()); });
 #endif
@@ -104,6 +105,9 @@ void EspBase::loop() {
 }
 
 void EspBase::reboot(uint32_t delayMs) {
+#ifndef ESPBASE_NO_OTA
+  _ota.keep();  // a requested restart is not a failed trial
+#endif
   _rebootAt = millis() + (delayMs == 0 ? 1 : delayMs);
 }
 

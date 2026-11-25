@@ -44,6 +44,7 @@ struct EspBaseConfig {
   // OTA ----------------------------------------------------------------------
   bool otaEnabled = true;            // runtime switch; compile out entirely with -DESPBASE_NO_OTA
   String otaPassword = "";           // used by ArduinoOTA and as HTTP basic auth password for POST /update (user "admin")
+  uint32_t otaTrialMs = 30000;       // an updated firmware that resets sooner rolls back to the previous one; 0 = kept once loop() runs
 
   // Logging ------------------------------------------------------------------
   Print* logOutput = nullptr;        // e.g. &Serial after Serial.begin(); nullptr = no serial sink

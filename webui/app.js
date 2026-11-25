@@ -132,6 +132,7 @@
     let info;
     try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return null; }
     lastInfo = info;
+    document.querySelector('.tab[data-panel="update"]').hidden = !info.ota;
     $('#host').textContent = info.hostname;
     document.title = info.hostname + ' console';
     $('#s-wifi').textContent = info.wifi.state.replace(/_/g, ' ') + (info.wifi.ap ? ' + AP' : '');

@@ -21,7 +21,7 @@
       <button class="tab active" data-panel="console">Console</button>
       <button class="tab" data-panel="wifi">WiFi</button>
       <button class="tab" data-panel="settings" hidden>Settings</button>
-      <button class="tab" data-panel="update">Update</button>
+      <button class="tab" data-panel="update" hidden>Update</button>
       <button class="tab" data-panel="info">Info</button>
     </nav>
   </header>
@@ -112,7 +112,7 @@
         <div class="row"><button type="submit" class="primary">Upload &amp; flash</button></div>
         <progress id="otaprog" value="0" max="100" hidden></progress>
         <p id="otamsg" class="msg"></p>
-        <p class="hint">Upload the <code>firmware.bin</code> produced by <code>pio run</code>. If an OTA password is set, sign in as <code>admin</code>.</p>
+        <p class="hint">Upload the <code>firmware.bin</code> produced by <code>pio run</code>. If an OTA password is set, sign in as <code>admin</code>. The new firmware is on trial for its first 30 s by default: if it resets before then, the device goes back to the previous firmware.</p>
       </form>
     </section>
 

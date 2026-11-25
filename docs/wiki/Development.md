@@ -30,7 +30,7 @@ pio test -e native               # host unit tests of the pure headers (WebGuard
 
 `platformio.ini` links the library into the example with `symlink://.`, so edits in `src/` are picked up directly.
 
-Before a release, check on each tier 1 board: the AP appears when no network is reachable, the captive portal opens, `wifi set` connects without a reboot, the device reconnects after a router power cycle, four console clients work at once, free heap is stable after an hour of logging, espota and browser OTA both succeed, and a wrong OTA password is rejected.
+Before a release, check on each tier 1 board: the AP appears when no network is reachable, the captive portal opens, `wifi set` connects without a reboot, the device reconnects after a router power cycle, four console clients work at once, free heap is stable after an hour of logging, espota and browser OTA both succeed, a wrong OTA password is rejected, and an update that crashes in `setup()` rolls back to the previous firmware.
 
 ## Web UI
 

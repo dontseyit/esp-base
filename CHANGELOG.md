@@ -10,6 +10,17 @@ All notable changes to this project are documented here. The format follows
 
 - `-DESPBASE_NO_APPS` compiles the app framework out for headless devices, along with `base.apps()`, the `app` command, `/api/apps` and the `boot_app` key. It saves about 13 KB of flash on the bundled example.
 - The `esp32-lean` build env, built by CI, sets `ESPBASE_NO_APPS` and `ESPBASE_NO_OTA` so both flags stay buildable.
+- `EspBaseConfig::otaTrialMs` (30 s): a firmware written by OTA boots on trial, and the bootloader returns to the previous firmware if it resets before the trial ends. `base.reboot()` and `OtaUpdater::keep()` end the trial early.
+
+### Changed
+
+- On a partition table with one app slot (`huge_app.csv`, `no_ota.csv`, `max_app_4MB.csv`) OTA switches itself off with one log line, and `info` and `/api/info` report it off.
+- The page shows the **Update** tab only while OTA is on.
+
+### Fixed
+
+- An update that crashed in `setup()` or `loop()` boot-looped until it was reflashed over USB. Arduino keeps every updated image before `setup()` runs. The library now makes that decision when the trial ends.
+- With OTA off (`otaEnabled = false`, or no second app slot) the **Update** tab stayed, and an upload ran to the end before it failed.
 
 ## [1.3.0] - 2026-11-24
 
