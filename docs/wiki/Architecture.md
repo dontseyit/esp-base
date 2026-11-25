@@ -13,7 +13,7 @@
 | `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*`, `WifiNaming.h`, `ApNotice.h` |
 | `WebConsole` | HTTP server, WebSocket, command registry, `/api` routes, embedded page. | `WebConsole.*`, `web/index_html_gz.h` |
 | `OtaUpdater` | ArduinoOTA and `POST /update`. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
-| `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
+| `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. Removed by `-DESPBASE_NO_APPS`. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
 | `ChipInfo` | The only place with `SOC_*` and `CONFIG_IDF_TARGET` checks. | `ChipInfo.h` |
 
 Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.settings()`, `base.apps()` and `base.ota()`.

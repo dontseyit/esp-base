@@ -10,7 +10,9 @@
 
 #include <Arduino.h>
 
+#ifndef ESPBASE_NO_APPS
 #include "AppManager.h"
+#endif
 #include "ChipInfo.h"
 #include "ConfigStore.h"
 #include "EspBaseConfig.h"
@@ -34,7 +36,9 @@ class EspBase {
   WifiManager& wifi() { return _wifi; }
   ConfigStore& config() { return _store; }
   ProjectSettings& settings() { return _settings; }  // the project's own settings; add them after begin()
+#ifndef ESPBASE_NO_APPS
   AppManager& apps() { return _apps; }  // call apps().start(...) after begin() to run the registered apps
+#endif
 #ifndef ESPBASE_NO_OTA
   OtaUpdater& ota() { return _ota; }
 #endif
@@ -59,7 +63,9 @@ class EspBase {
   ProjectSettings _settings;
   WifiManager _wifi;
   WebConsole _console;
+#ifndef ESPBASE_NO_APPS
   AppManager _apps;
+#endif
 #ifndef ESPBASE_NO_OTA
   OtaUpdater _ota;
 #endif

@@ -18,7 +18,11 @@ const char* slotKey(uint8_t slot, const char* field, char* buf, size_t len) {
 }  // namespace
 
 const char* const All[] = {StaSsid,   StaPass,   "sta2_ssid", "sta2_pass", "sta3_ssid",  "sta3_pass",   "sta4_ssid", "sta4_pass", "sta5_ssid",
-                           "sta5_pass", Hostname, ApPass,      WebPass,     LogLevelKey, WifiModeKey, StaTimeout, ReconnTimeout, ApRetry,   BootApp, nullptr};
+                           "sta5_pass", Hostname, ApPass,      WebPass,     LogLevelKey, WifiModeKey, StaTimeout, ReconnTimeout, ApRetry,
+#ifndef ESPBASE_NO_APPS
+                           BootApp,
+#endif
+                           nullptr};
 
 bool isSecret(const char* key) {
   if (key == nullptr) {

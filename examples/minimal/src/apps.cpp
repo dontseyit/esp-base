@@ -1,3 +1,5 @@
+#ifndef ESPBASE_NO_APPS
+
 // Example apps: a launcher (root), a clock, an overlay dialog and a hidden
 // service. Drive them from the console with "app key up|down|select|back".
 #include <EspBase.h>
@@ -153,3 +155,5 @@ class HomeApp : public App {
   int _sel = 0;
 };
 REGISTER_APP(HomeApp);
+
+#endif  // ESPBASE_NO_APPS

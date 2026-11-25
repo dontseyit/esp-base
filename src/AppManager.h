@@ -1,6 +1,9 @@
 // Lifecycle, scheduling and navigation for the apps in AppRegistry. Runs from
 // EspBase::loop(); see App.h for the app side of the contract.
+// Compiled out entirely with -DESPBASE_NO_APPS (headless devices).
 #pragma once
+
+#ifndef ESPBASE_NO_APPS
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -101,3 +104,5 @@ class AppManager {
   uint32_t _presentLastUs = 0;
   uint32_t _presentMaxUs = 0;
 };
+
+#endif  // ESPBASE_NO_APPS

@@ -86,6 +86,7 @@ The device writes the other app slot, verifies the image and reboots into it. Up
 | `-DCONFIG_ASYNC_TCP_RUNNING_CORE=1` | dual core projects | Pin the async_tcp task to the application core (AsyncTCP default: any core). |
 | `-DCONFIG_ASYNC_TCP_STACK_SIZE=4096` | optional | AsyncTCP defaults to 16 KB. |
 | `-DESPBASE_NO_OTA` | optional | Compile the OTA module out. |
+| `-DESPBASE_NO_APPS` | headless projects | Compile the app framework out: no `base.apps()`, `app` command, `/api/apps` or `boot_app` key. |
 | `-DESPBASE_LOG_MAX_LEVEL=3` | optional | Compile `LOG_D` out. |
 | `-DFW_VERSION=\"1.2.3\"` | recommended | Firmware version shown by `info` and `/api/info`. |
 

@@ -7,7 +7,10 @@
 //
 // The Frame (drawing surface) and the input source belong to the project; the
 // library only passes references through.
+// Compiled out entirely with -DESPBASE_NO_APPS (headless devices).
 #pragma once
+
+#ifndef ESPBASE_NO_APPS
 
 #include <Arduino.h>
 
@@ -129,3 +132,5 @@ class AppRegistrar {
 #define REGISTER_APP(Type, ...)                     \
   static Type Type##_appInstance{__VA_ARGS__};      \
   static AppRegistrar Type##_appRegistrar(Type##_appInstance)
+
+#endif  // ESPBASE_NO_APPS

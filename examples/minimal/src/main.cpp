@@ -15,6 +15,8 @@
 
 static EspBaseConfig cfg;
 static EspBase base;
+
+#ifndef ESPBASE_NO_APPS
 static Frame frame;
 
 // "Display driver" for the example: log the frame whenever it changed.
@@ -26,6 +28,7 @@ static void presentFrame(Frame& f) {
   shown = f;
   LOG_I("frame: |%s|%s|%s|%s|", f.cell[0], f.cell[1], f.cell[2], f.cell[3]);
 }
+#endif
 
 static void ledCommand(const CmdArgs& args, Print& out) {
   if (LED_PIN < 0) {
@@ -93,10 +96,12 @@ void setup() {
   LOG_I("app: %s with %d core(s), ble=%d, usb-cdc=%d, heap %lu", ChipInfo::name(), ChipInfo::cores(), ChipInfo::hasBle(), ChipInfo::hasUsbCdc(),
         static_cast<unsigned long>(ESP.getFreeHeap()));
 
+#ifndef ESPBASE_NO_APPS
   // Apps (see apps.cpp). Drive them with "app key up|down|select|back" from
   // the console; a real project feeds base.apps().input() from its buttons.
   base.apps().setIdleTimeout(120000);  // back to the launcher after 2 min without input
   base.apps().start(&frame, presentFrame, "home");
+#endif
 }
 
 void loop() {

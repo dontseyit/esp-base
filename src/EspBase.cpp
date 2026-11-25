@@ -72,7 +72,9 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
   _wifi.onApStarted([this]() { _ota.onNetworkUp(_wifi.mdnsRunning()); });
 #endif
   registerBuiltins();
+#ifndef ESPBASE_NO_APPS
   _apps.attach(*this);
+#endif
 
   _begun = true;
   LOG_I("esp-base: ready in %lu ms", static_cast<unsigned long>(millis() - t0));
@@ -86,7 +88,9 @@ void EspBase::loop() {
   _wifi.loop();
   _settings.loop();
   _console.loop();
+#ifndef ESPBASE_NO_APPS
   _apps.loop();
+#endif
 #ifndef ESPBASE_NO_OTA
   _ota.loop();
 #endif

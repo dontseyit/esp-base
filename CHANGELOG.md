@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `-DESPBASE_NO_APPS` compiles the app framework out for headless devices, along with `base.apps()`, the `app` command, `/api/apps` and the `boot_app` key. It saves about 13 KB of flash on the bundled example.
+- The `esp32-lean` build env, built by CI, sets `ESPBASE_NO_APPS` and `ESPBASE_NO_OTA` so both flags stay buildable.
+
 ## [1.3.0] - 2026-11-24
 
 ### Added

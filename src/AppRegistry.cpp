@@ -1,3 +1,5 @@
+#ifndef ESPBASE_NO_APPS
+
 #include <string.h>
 
 #include "App.h"
@@ -82,3 +84,5 @@ App* AppRegistry::first() {
   sortIfNeeded();
   return head();
 }
+
+#endif  // ESPBASE_NO_APPS

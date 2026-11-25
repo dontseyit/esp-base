@@ -1,3 +1,5 @@
+#ifndef ESPBASE_NO_APPS
+
 #include "AppManager.h"
 
 #include <AsyncJson.h>
@@ -599,3 +601,5 @@ void AppManager::writeJson(JsonObject o) {
     st["drawMaxUs"] = s.drawMaxUs;
   }
 }
+
+#endif  // ESPBASE_NO_APPS

@@ -23,6 +23,7 @@ platformio.ini        builds the example against the library for every target
 ```sh
 pio run                          # tier 1: esp32, esp32s3, esp32c3
 pio run -e esp32c6 -e esp32s2 -e esp32p4    # tier 2
+pio run -e esp32-lean            # ESPBASE_NO_APPS and ESPBASE_NO_OTA set
 pio run -e esp32s3 -t upload -t monitor
 pio test -e native               # host unit tests of the pure headers (WebGuard.h, SettingsCheck.h, WifiNaming.h, ApNotice.h)
 ```

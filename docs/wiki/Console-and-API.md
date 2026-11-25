@@ -22,7 +22,7 @@ Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single g
 | `config list\|get\|set` | Persisted keys, the project's settings among them. See [Logging and config](Logging-and-Config.md#key-reference). |
 | `settings` | The project's own settings; a secret shows only as `(set)` or `(not set)`. Change one with `config set <key> <value>`; without a value it goes back to its default. See [Project settings](Logging-and-Config.md#project-settings). |
 | `log level [e\|w\|i\|d]`, `log dump` | Runtime log level (persisted), print the ring buffer. |
-| `app ...` | App framework. See [Apps](Apps.md#console-and-api). |
+| `app ...` | App framework, absent with `-DESPBASE_NO_APPS`. See [Apps](Apps.md#console-and-api). |
 
 ## Adding a command
 
@@ -75,7 +75,7 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 | `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
 | `GET /api/settings` | `{"settings":[{"key","label","kind":"text\|secret\|choice","value","set","choices":[...],"hint","maxLen"}]}`: the project's settings. A secret never has a `value`. |
 | `POST /api/settings` | `{"<key>":"<value>"\|null, ...}`. Every pair is checked first, and one bad pair changes nothing: 400 with an `error` that names the key. 503 while too many requests wait. 200 means the request passed the checks; the loop task writes it a moment later, and a write that fails there (NVS full, say) is logged while the other keys still change. `null` clears a value; `""` clears a text or a choice and leaves a secret as it is. |
-| `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions. See [Apps](Apps.md#console-and-api). |
+| `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions; absent with `-DESPBASE_NO_APPS`. See [Apps](Apps.md#console-and-api). |
 | `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
 | `GET /ws` | WebSocket. |
 

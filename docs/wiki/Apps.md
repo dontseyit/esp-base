@@ -4,6 +4,8 @@
 
 Apps are how you build a product on esp-base. Each app is a C++ object compiled into the firmware. `AppRegistry` collects the apps at static init time, and `AppManager` runs them from `base.loop()`: it ticks and draws each one at its declared rates, keeps a navigation stack, and applies transitions at the end of the loop iteration. The drawing surface (`Frame`) and the input source belong to your project.
 
+A headless device that has no use for apps builds with `-DESPBASE_NO_APPS`. That compiles the framework out, along with `base.apps()`, the `app` command, `/api/apps` and the `boot_app` key.
+
 ## A minimal app
 
 ```cpp
