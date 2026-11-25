@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows
 - `SettingKind::Number` (with `min`, `max` and `decimals`) and `SettingKind::Bool` for a project's settings, with `getInt()`, `getFloat()` and `getBool()`. The page shows a number field and a checkbox, and `POST /api/settings` also accepts JSON numbers and `true`/`false`.
 - `EspBaseConfig::consolePath`: where the console page is served, `/` by default. Another path frees `/` for a portal of the project's own, and `""` serves no page. The API and `/ws` stay either way.
 - `EspBaseConfig::appPage` and `appPageTitle`: a page of the project's own under `/app/`, linked from the tab bar.
+- Host tests of the WiFi state machine (`test/test_wifi_manager`): `WifiManager.cpp` is compiled unchanged against stand-ins for the Arduino core and the WiFi driver (`test/fakes`), and 17 tests play the network. They cover about 83% of its lines.
 - `EspBaseConfig::otaTrialMs` (30 s): a firmware written by OTA boots on trial, and the bootloader returns to the previous firmware if it resets before the trial ends. `base.reboot()` and `OtaUpdater::keep()` end the trial early.
 
 ### Changed

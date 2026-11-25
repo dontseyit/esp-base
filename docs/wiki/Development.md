@@ -11,7 +11,7 @@ src/                  the library
 src/web/              generated page header, committed
 webui/                index.html, app.js, style.css
 tools/build_web.py    webui/ -> src/web/index_html_gz.h
-test/                 host unit tests (pio test -e native)
+test/                 host unit tests (pio test -e native); test/fakes stands in for the Arduino core and the WiFi driver
 examples/minimal/     example sketch, text Frame, example apps
 docs/wiki/            this wiki
 .github/workflows/    CI
@@ -25,7 +25,7 @@ pio run                          # tier 1: esp32, esp32s3, esp32c3
 pio run -e esp32c6 -e esp32s2 -e esp32p4    # tier 2
 pio run -e esp32-lean            # ESPBASE_NO_APPS and ESPBASE_NO_OTA set
 pio run -e esp32s3 -t upload -t monitor
-pio test -e native               # host unit tests of the pure headers (WebGuard.h, SettingsCheck.h, WifiNaming.h, ApNotice.h)
+pio test -e native               # host unit tests: the pure headers, and the WiFi state machine (WifiManager.cpp, unchanged, against test/fakes)
 ```
 
 `platformio.ini` links the library into the example with `symlink://.`, so edits in `src/` are picked up directly.
