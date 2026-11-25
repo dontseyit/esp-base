@@ -327,8 +327,7 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
     if (a.is(0, "get")) {
       showSetting(*def, out);
     } else if (a[2].isEmpty()) {
-      _settings.clear(def->key);
-      out.printf("%s cleared\r\n", def->key);
+      out.printf(_settings.clear(def->key) ? "%s cleared\r\n" : "%s: clear failed\r\n", def->key);
     } else {
       String err;
       if (_settings.set(def->key, a[2], err)) {

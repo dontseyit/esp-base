@@ -124,7 +124,9 @@ bool ProjectSettings::clear(const char* key) {
     return false;
   }
   if (_store->has(def->key)) {
-    _store->remove(def->key);
+    if (!_store->remove(def->key)) {
+      return false;  // still stored: no callback
+    }
     notify(def->key);
   }
   return true;
@@ -163,7 +165,9 @@ void ProjectSettings::loop() {
     for (const Change& c : request) {
       String err;
       if (c.clear) {
-        clear(c.def->key);
+        if (!clear(c.def->key)) {
+          LOG_W("settings: %s: clear failed", c.def->key);
+        }
       } else if (!set(c.def->key, c.value, err)) {
         LOG_W("settings: %s", err.c_str());  // it passed check() when it was queued
       }

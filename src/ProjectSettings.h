@@ -66,7 +66,8 @@ class ProjectSettings {
   // Loop task: check, store, run the callbacks. Storing the value that is
   // already stored changes nothing and runs no callback.
   bool set(const char* key, const String& value, String& err);
-  // Loop task: back to the default.
+  // Loop task: back to the default, then the callbacks if a value was stored.
+  // false for an unknown key or a failed delete (no callback then).
   bool clear(const char* key);
 
   // Any task: hands checked changes over to loop(), all of them or none. A
