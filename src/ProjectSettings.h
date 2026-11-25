@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 
+#include <atomic>
 #include <functional>
 #include <vector>
 
@@ -54,7 +55,9 @@ class ProjectSettings {
   const SettingDef* at(size_t i) const { return i < _count ? &_defs[i] : nullptr; }
   const SettingDef* find(const char* key) const;
 
-  // The stored value, else the default; "" for an unknown key. Any task.
+  // The stored value, else the default; "" for an unknown key. Any task. A
+  // stored value the definition no longer allows (an update changed the
+  // choices or maxLen) gives the default too.
   String get(const char* key);
   bool isSet(const char* key);
 
@@ -84,7 +87,7 @@ class ProjectSettings {
 
   ConfigStore* _store = nullptr;
   SettingDef _defs[kMaxSettings];
-  size_t _count = 0;
+  std::atomic<size_t> _count{0};  // raised after the copy: readers on other tasks never see half a definition
   SemaphoreHandle_t _mutex = nullptr;
   std::vector<std::vector<Change>> _queue;  // guarded by _mutex
   std::vector<std::function<void(const char*)>> _onChange;

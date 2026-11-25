@@ -318,6 +318,10 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
     out.println("usage: config list | config get <key> | config set <key> <value>");
     return;
   }
+  if (a.is(0, "set") && a.has(3)) {  // else every word after the first would be dropped
+    out.println("one value only: quote one with spaces, config set <key> \"<value>\"");
+    return;
+  }
   const String& key = a[1];
   if (const SettingDef* def = _settings.find(key.c_str())) {  // a project setting
     if (a.is(0, "get")) {

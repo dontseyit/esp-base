@@ -46,7 +46,7 @@ bool ProjectSettings::add(const SettingDef& def) {
     return false;
   }
   _defs[_count] = def;
-  ++_count;  // after the copy: readers on other tasks never see half a definition
+  ++_count;  // atomic: published after the copy
   return true;
 }
 
@@ -54,7 +54,8 @@ const SettingDef* ProjectSettings::find(const char* key) const {
   if (key == nullptr) {
     return nullptr;
   }
-  for (size_t i = 0; i < _count; ++i) {
+  const size_t n = _count;
+  for (size_t i = 0; i < n; ++i) {
     if (strcmp(_defs[i].key, key) == 0) {
       return &_defs[i];
     }
@@ -67,7 +68,11 @@ String ProjectSettings::get(const char* key) {
   if (def == nullptr || _store == nullptr) {
     return String();
   }
-  return _store->getString(def->key, def->def);
+  String value = _store->getString(def->key, def->def);
+  if (SettingsCheck::valueError(def->kind, def->choices, def->maxLen, value.c_str()) != nullptr) {
+    return String(def->def);  // stored by a firmware whose definition allowed it
+  }
+  return value;
 }
 
 bool ProjectSettings::isSet(const char* key) {

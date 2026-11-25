@@ -55,7 +55,7 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 | `log_lvl` | `log level` | immediately |
 | `boot_app` | `app boot`, replacing the root app | next start |
 
-`config list` shows every key with secrets masked. `config set` validates WiFi keys the same way the WiFi tab does, and accepts only letters, digits and `-` in a hostname.
+`config list` shows every key with secrets masked. A value with spaces goes in quotes: `config set city "New York"`. `config set` validates WiFi keys the same way the WiFi tab does, and accepts only letters, digits and `-` in a hostname.
 
 ## Project settings
 
@@ -83,7 +83,7 @@ base.settings().onChange([](const char* key) { LOG_I("setting %s changed", key);
 | `validate` | none | `bool (*)(const String& value, String& err)`, a check of your own. It runs on the loop task and on the web server's task, so it must not touch state. |
 
 - `add()` returns false and logs an error for a bad or duplicate definition, and for the 25th.
-- `get(key)` returns the stored value or the default. `set()` and `clear()` are for the loop task; `queue()` hands changes over from any other task.
+- `get(key)` returns the stored value or the default. It also returns the default for a stored value the definition no longer allows, after an update changed the choices or `maxLen`. `set()` and `clear()` are for the loop task; `queue()` hands changes over from any other task.
 - `onChange` callbacks run on the loop task after a value changed. Do not log a secret's value there.
 - The page shows the settings in a **Settings** tab, which is there only when at least one is defined. The console lists them with `settings`, and `config get|set|list` accept their keys.
 - The values are in the `espbase` namespace, so `factory-reset` erases them with everything else.

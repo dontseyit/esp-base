@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format follows
 - The captive DNS did not start on a chip without WiFi of its own (`wifi: captive DNS failed to start`), so the portal never opened by itself: the core compiles the argument-less `DNSServer::start()` as a failure there. The explicit form is used on every chip.
 - On such a chip every access point was named `<prefix>-0000`, because the address was read before the driver existed. There the name is now finished when the driver starts, and `apSsid()` returns the prefix alone until the first `loop()`. On a chip with WiFi of its own nothing changes: the name is complete after `begin()`.
 - `onApStarted` ran twice on such a chip, because hosted WiFi restarts the access point while it is being configured. The notice is now given once for each time the library brings the access point up.
+- `config set <key> a b` stored `a` and dropped the rest without a word, so `config set web_pass long password` set the password to `long`. It is now refused; quote a value with spaces.
 
 ## [1.2.0] - 2026-09-17
 
