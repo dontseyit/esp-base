@@ -19,10 +19,12 @@
     </div>
     <nav class="tabs">
       <button class="tab active" data-panel="console">Console</button>
+      <button class="tab" data-panel="device" hidden>Device</button>
       <button class="tab" data-panel="wifi">WiFi</button>
       <button class="tab" data-panel="settings" hidden>Settings</button>
       <button class="tab" data-panel="update" hidden>Update</button>
       <button class="tab" data-panel="info">Info</button>
+      <a class="tab" id="applink" hidden></a>
     </nav>
   </header>
   <main>
@@ -46,6 +48,12 @@
         <input id="cmd" placeholder="command (try: help)" spellcheck="false">
         <button type="submit" class="primary">Run</button>
       </form>
+    </section>
+
+    <section id="device" class="panel scroll">
+      <table id="values"></table>
+      <div id="buttons" class="row"></div>
+      <p id="devicemsg" class="msg" role="status"></p>
     </section>
 
     <section id="wifi" class="panel scroll">

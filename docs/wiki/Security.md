@@ -24,7 +24,7 @@ Passwords are 8 to 63 characters. Stored keys override the config fields and app
 
 ## Routes you add
 
-Routes under `/api/` get the origin check and, with a password, the login before your handler runs. Put every route that changes state there. See [Console and API](Console-and-API.md#adding-an-http-route).
+Routes under `/api/` and `/app/` get the origin check and, with a password, the login before your handler runs. Put every route that changes state under `/api/`, and pages of your own under `/app/`. A route anywhere else is public, even with a password set. See [Console and API](Console-and-API.md#adding-an-http-route).
 
 ## What stays with the project
 

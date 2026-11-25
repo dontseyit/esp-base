@@ -45,6 +45,7 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
   Log.setLevel(_cfg.logLevel);
   _store.begin(EspBaseKeys::Namespace);
   _settings.begin(_store);
+  _status.begin();
   if (_store.has(EspBaseKeys::LogLevelKey)) {
     const uint8_t lvl = _store.getUChar(EspBaseKeys::LogLevelKey, static_cast<uint8_t>(_cfg.logLevel));
     if (lvl <= static_cast<uint8_t>(LogLevel::Debug)) {
@@ -65,6 +66,7 @@ bool EspBase::begin(const EspBaseConfig& cfg) {
 
   _wifi.begin(_cfg, _store);
   _console.attachSettings(_settings);
+  _console.attachStatus(_status);
   _console.begin(_cfg, _wifi, _store.getString(EspBaseKeys::WebPass, _cfg.webPassword));
 #ifndef ESPBASE_NO_OTA
   _ota.begin(_cfg, _console, _wifi.hostname());

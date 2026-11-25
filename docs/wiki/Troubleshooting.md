@@ -7,7 +7,7 @@
 | The loop stalls when no USB cable or host is attached | USB CDC writes wait for a host | `Serial.setTxTimeoutMs(0)` after `Serial.begin()` |
 | C3 or C6 build fails around `Serial` or `USBSerial` | `ARDUINO_USB_CDC_ON_BOOT` without the USB mode flag | add `-DARDUINO_USB_MODE=1` |
 | The build pulls in ESPAsyncTCP or RPAsyncTCP | library compatibility mode is not strict | `lib_compat_mode = strict` and `lib_ldf_mode = chain` |
-| OTA fails with "not enough space" | the app slot is too small | `board_build.partitions = min_spiffs.csv` or a larger table |
+| OTA fails with "not enough space" although the build passed | `firmware.bin` is bigger than the app slot; PlatformIO's `Flash:` figure reads 30 to 75 KB lower | `board_build.partitions = min_spiffs.csv` or your own table, see [Partition table](Getting-Started.md#partition-table) |
 | After an update the device runs the old firmware | the new one reset during its trial; the log says `ota: the firmware written to ... was rolled back` | find the crash in the serial log; keep the device powered for the first 30 s |
 | No **Update** tab, log says `ota: off, the partition table has one app slot` | a one-app partition table | update over USB, or use a two-slot table such as `min_spiffs.csv` |
 | espota cannot find the device | mDNS only runs while the station is connected | use the IP; on the AP use `192.168.4.1`; allow UDP 3232 |

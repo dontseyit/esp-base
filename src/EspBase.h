@@ -15,6 +15,7 @@
 #endif
 #include "ChipInfo.h"
 #include "ConfigStore.h"
+#include "DeviceStatus.h"
 #include "EspBaseConfig.h"
 #include "Log.h"
 #include "ProjectSettings.h"
@@ -36,6 +37,7 @@ class EspBase {
   WifiManager& wifi() { return _wifi; }
   ConfigStore& config() { return _store; }
   ProjectSettings& settings() { return _settings; }  // the project's own settings; add them after begin()
+  DeviceStatus& status() { return _status; }  // the project's values and buttons in the Device tab; add them after begin()
 #ifndef ESPBASE_NO_APPS
   AppManager& apps() { return _apps; }  // call apps().start(...) after begin() to run the registered apps
 #endif
@@ -61,6 +63,7 @@ class EspBase {
   EspBaseConfig _cfg;
   ConfigStore _store;
   ProjectSettings _settings;
+  DeviceStatus _status;
   WifiManager _wifi;
   WebConsole _console;
 #ifndef ESPBASE_NO_APPS

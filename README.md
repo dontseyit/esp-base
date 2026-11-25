@@ -7,6 +7,7 @@ A reusable Arduino library that gives every ESP32 project the same baseline out 
 - OTA updates through espota or the browser, with optional passwords, and a rollback when an updated firmware resets in its first 30 s.
 - Persistent settings over NVS, and structured logging with a ring buffer.
 - A Settings tab on the page for your project's own settings, with write-only secrets.
+- A Device tab for your project's values and buttons, and a link to a page of your own under `/app/`, behind the same login.
 - An app framework with a navigation stack for building the product on top. Headless devices compile it out with `-DESPBASE_NO_APPS`.
 
 The same code builds for ESP32, ESP32-S3 and ESP32-C3 (hardware tested) and for ESP32-C6, ESP32-S2 and ESP32-P4 (build tested). On the P4 the WiFi is a second chip (ESP-Hosted) that your project powers and wires; it has run that way on an M5Stack Tab5. Pins, display, input, partitions and USB flags stay in your project.

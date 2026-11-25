@@ -10,13 +10,14 @@
 | `Log` | `LOG_x` macros, serial sink, ring buffer. | `Log.*` |
 | `ConfigStore` | Mutex protected wrapper over `Preferences` (NVS). | `ConfigStore.*` |
 | `ProjectSettings` | A project's own settings: definitions, values through `ConfigStore`, hand-over from other tasks, change callbacks. | `ProjectSettings.*`, `SettingsCheck.h` |
+| `DeviceStatus` | A project's own values and buttons for the Device tab. | `DeviceStatus.*` |
 | `WifiManager` | Radio modes, stored networks, state machine, AP with captive DNS, mDNS, scan. | `WifiManager.*`, `WifiNaming.h`, `ApNotice.h` |
 | `WebConsole` | HTTP server, WebSocket, command registry, `/api` routes, embedded page. | `WebConsole.*`, `web/index_html_gz.h` |
 | `OtaUpdater` | ArduinoOTA, `POST /update` and the trial that rolls back a failing update. Removed by `-DESPBASE_NO_OTA`. | `OtaUpdater.*` |
 | `AppRegistry`, `AppManager` | App registration, lifecycle, scheduling, navigation. Removed by `-DESPBASE_NO_APPS`. | `App.h`, `AppRegistry.cpp`, `AppManager.*` |
 | `ChipInfo` | The only place with `SOC_*` and `CONFIG_IDF_TARGET` checks. | `ChipInfo.h` |
 
-Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.settings()`, `base.apps()` and `base.ota()`.
+Reach them through `base.wifi()`, `base.console()`, `base.web()`, `base.config()`, `base.settings()`, `base.status()`, `base.apps()` and `base.ota()`.
 
 `ChipInfo` is usable from project code too:
 
@@ -50,7 +51,7 @@ What this means for your code:
 - Console commands run on the loop task. They may call any library API.
 - HTTP handlers run on the async_tcp task. Keep them short and never block. For anything that changes device state, set a flag or push to a queue and act on it in `loop()`, the way the built-in routes do.
 - `LOG_x` is safe from any task because logging never touches the network stack. It is not allowed from an ISR.
-- Every route under `/api/`, plus `/ws` and `/update`, passes the origin check and, with a password, the login before its handler runs. Put routes that change state under `/api/`.
+- Every route under `/api/` and `/app/`, plus `/ws` and `/update`, passes the origin check and, with a password, the login before its handler runs. Put routes that change state under `/api/` and pages of your own under `/app/`.
 
 ## One loop iteration
 
@@ -82,11 +83,24 @@ Measured on the bundled example:
 
 | Item | Size |
 | --- | --- |
-| Static RAM | 44 to 54 KB depending on the chip |
-| Flash | 1.08 to 1.24 MB |
+| Static RAM | 39 to 54 KB depending on the chip |
+| Flash (`firmware.bin`) | 1.08 to 1.27 MB |
 | Web page | about 8 KB gzipped, budget 20 KB |
 | Log ring | 4 KB (`logBufferBytes`) |
 | WebSocket clients | 4 (`maxWsClients`) |
+
+Most of the flash is the Arduino core and its WiFi stack. A sketch that only calls `WiFi.begin()` is already 0.78 to 0.94 MB on the same platform. The example adds 0.29 to 0.35 MB to that (ESP32 / ESP32-C6):
+
+| Part | Adds |
+| --- | --- |
+| esp-base's own code, the page included | 81 / 95 KB |
+| ESPAsyncWebServer and AsyncTCP | 66 / 77 KB |
+| String literals of everything in this table | 32 / 38 KB |
+| mDNS | 30 / 36 KB |
+| OTA: ArduinoOTA with its Hash library, Update | 20 / 24 KB |
+| Arduino network classes, lwIP, captive DNS, Preferences, the example sketch | 63 / 77 KB |
+
+`-DESPBASE_NO_APPS -DESPBASE_NO_OTA` removes about 50 KB. Partition choices are in [Getting started](Getting-Started.md#partition-table).
 
 ## Design decisions
 

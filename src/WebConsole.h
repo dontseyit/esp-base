@@ -19,6 +19,7 @@
 #include "EspBaseConfig.h"
 #include "Log.h"
 
+class DeviceStatus;
 class ProjectSettings;
 class WifiManager;
 
@@ -71,6 +72,8 @@ class WebConsole {
   void begin(const EspBaseConfig& cfg, WifiManager& wifi, const String& password);
   // The project's settings, served at /api/settings. Call before begin().
   void attachSettings(ProjectSettings& settings) { _settings = &settings; }
+  // The project's values and buttons, served at /api/status. Call before begin().
+  void attachStatus(DeviceStatus& status) { _status = &status; }
   void loop();
 
   // Valid after begin().
@@ -142,6 +145,8 @@ class WebConsole {
   const EspBaseConfig* _cfg = nullptr;
   WifiManager* _wifi = nullptr;
   ProjectSettings* _settings = nullptr;
+  DeviceStatus* _status = nullptr;
+  bool _appLink = false;  // cfg.appPage is set and under /app/
   AsyncWebServer* _server = nullptr;
   AsyncWebSocket _ws;
   std::vector<Command> _commands;

@@ -22,9 +22,10 @@
     if (name === 'info') refreshInfo();
     if (name === 'wifi') loadWifi();
     if (name === 'settings') loadSettings();
+    if (name === 'device') loadStatus();
     if (name === 'console') cmdEl.focus();
   }
-  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.panel)));
+  document.querySelectorAll('.tab[data-panel]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.panel)));
 
   // ---- log pane ---------------------------------------------------------
   const fmtMs = (ms) => (Math.floor(ms / 1000) + '.' + String(ms % 1000).padStart(3, '0')).padStart(10, ' ');
@@ -77,7 +78,12 @@
   }
   function handle(m) {
     if (m.t === 'log') push({ l: m.l, ms: m.ms, m: m.m });
-    else if (m.t === 'out') push({ l: 'O', m: (m.m || '').replace(/\r/g, '').replace(/\n$/, '') });
+    else if (m.t === 'out') {
+      const text = (m.m || '').replace(/\r/g, '').replace(/\n$/, '');
+      push({ l: 'O', m: text });
+      // The answer to a Device button goes under the buttons too.
+      if (Date.now() - buttonAt < 5000) { buttonAt = 0; msg('#devicemsg', text || 'done'); loadStatus(); }
+    }
   }
 
   // ---- command input with history -------------------------------------
@@ -133,6 +139,9 @@
     try { info = await (await fetch('/api/info', { cache: 'no-store' })).json(); } catch (e) { return null; }
     lastInfo = info;
     document.querySelector('.tab[data-panel="update"]').hidden = !info.ota;
+    const app = $('#applink');  // the project's own page; the device only names paths under /app/
+    app.hidden = !info.app;
+    if (info.app) { app.href = info.app.path; app.textContent = info.app.title; }
     $('#host').textContent = info.hostname;
     document.title = info.hostname + ' console';
     $('#s-wifi').textContent = info.wifi.state.replace(/_/g, ' ') + (info.wifi.ap ? ' + AP' : '');
@@ -365,6 +374,35 @@
     }
   });
 
+  // ---- device -----------------------------------------------------------
+  // The project's values and buttons (/api/status), as text, never markup.
+  // Rows and buttons are built once and then only the values change, so a
+  // button keeps its focus while the tab refreshes.
+  let statusShape = '';
+  let buttonAt = 0;  // when a Device button sent its command, so its answer shows here
+  async function loadStatus() {
+    let r;
+    try { r = await api('/api/status'); } catch (e) { return; }
+    const values = r.values || [];
+    const buttons = r.buttons || [];
+    document.querySelector('.tab[data-panel="device"]').hidden = !values.length && !buttons.length;
+    const t = $('#values');
+    const shape = JSON.stringify([values.map((v) => [v.key, v.label]), buttons]);
+    if (shape !== statusShape) {
+      statusShape = shape;
+      t.textContent = '';
+      values.forEach((v) => { const tr = t.insertRow(); tr.insertCell().textContent = v.label; tr.insertCell(); });
+      $('#buttons').replaceChildren(...buttons.map((b) => button(b.label, () => {
+        if (!ws || ws.readyState !== 1) { msg('#devicemsg', 'Not connected to the device. Try again in a moment.', true); return; }
+        buttonAt = Date.now();
+        msg('#devicemsg', 'running ' + b.cmd + '…');
+        send(b.cmd);
+      })));
+    }
+    values.forEach((v, i) => { t.rows[i].cells[1].textContent = v.value || '–'; });
+  }
+  setInterval(() => { if ($('#device').classList.contains('active')) loadStatus(); }, 2000);
+
   // ---- ota --------------------------------------------------------------
   function waitForReboot() {
     let tries = 0;
@@ -407,5 +445,5 @@
   connect();
   cmdEl.focus();
   // While the device is its own access point, the project may name the tab to open on.
-  loadSettings().then(refreshInfo).then((info) => { if (info && info.landing) showTab(info.landing); });
+  Promise.all([loadSettings(), loadStatus()]).then(refreshInfo).then((info) => { if (info && info.landing) showTab(info.landing); });
 })();

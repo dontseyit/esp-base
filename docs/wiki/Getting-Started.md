@@ -31,8 +31,38 @@ build_flags = ${env.build_flags} -DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=
 Why these lines:
 
 - `lib_compat_mode = strict` and `lib_ldf_mode = chain` keep the ESP8266 and RP2040 TCP backends that ESPAsyncWebServer declares out of an ESP32 build.
-- `min_spiffs.csv` gives two 1.9 MB app slots. A typical build is 1.1 to 1.25 MB, and OTA needs two slots because it writes the one it is not running from. If you will always update over USB, a one-slot table such as `huge_app.csv` (3 MB app) or `max_app_4MB.csv` (3.9 MB) gives that space back. OTA then switches itself off, and `-DESPBASE_NO_OTA` also removes its code. On 8 MB and 16 MB flash, two slots cost little.
+- `min_spiffs.csv` gives two 1.9 MB app slots, enough for OTA on every chip. [Partition table](#partition-table) covers the other choices.
 - The USB flags route `Serial` to the USB port. The C3 and C6 also need `ARDUINO_USB_MODE=1`.
+
+### Partition table
+
+OTA needs two app slots of the same size, because it writes the one it is not running from. The bundled example builds to 1.08 to 1.27 MB depending on the chip, before any code of yours ([where that goes](Architecture.md#resource-budget)). Go by the size of `.pio/build/<env>/firmware.bin`, which is what has to fit in a slot. PlatformIO's `Flash:` line reads 30 to 75 KB lower and passes builds that will not fit.
+
+The stock tables for 4 MB flash:
+
+| Table | App slots | Filesystem | The example |
+| --- | --- | --- | --- |
+| `default.csv` | 2 × 1.25 MB | 1.375 MB | fits on ESP32, S2 and S3 with 110 to 170 KB to spare; too big on C3 and C6 |
+| `min_spiffs.csv` | 2 × 1.875 MB | 128 KB | fits everywhere, with room to grow |
+| `ota_nofs_4MB.csv` | 2 × 1.94 MB | none | fits everywhere |
+| `huge_app.csv` | 1 × 3 MB | 896 KB | no OTA |
+| `max_app_4MB.csv` | 1 × 3.9 MB | none | no OTA |
+
+esp-base itself needs no filesystem, because the page is compiled in and settings live in NVS. With a one-slot table OTA switches itself off, and `-DESPBASE_NO_OTA` also removes its code. On 8 MB and 16 MB flash two slots cost little.
+
+No stock 4 MB table has both OTA and a filesystem of useful size. For both, write your own. This one has two 1.5 MB slots and 896 KB for LittleFS:
+
+```csv
+# Name,   Type, SubType,  Offset,   Size
+nvs,      data, nvs,      0x9000,   0x5000
+otadata,  data, ota,      0xe000,   0x2000
+app0,     app,  ota_0,    0x10000,  0x180000
+app1,     app,  ota_1,    0x190000, 0x180000
+spiffs,   data, spiffs,   0x310000, 0xE0000
+coredump, data, coredump, 0x3F0000, 0x10000
+```
+
+Save it next to `platformio.ini` as `partitions.csv` and set `board_build.partitions = partitions.csv`. Each partition starts where the one before it ends, app slots start on a 64 KB boundary, and the last one ends at `0x400000` on 4 MB flash. Move the `app1` and `spiffs` offsets together to trade slot size for filesystem space. The filesystem keeps the name `spiffs`, the partition `LittleFS.begin()` mounts by default.
 
 ## 2. Minimal sketch
 

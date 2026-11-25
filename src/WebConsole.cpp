@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "ChipInfo.h"
+#include "DeviceStatus.h"
 #include "WebGuard.h"
 #include "ProjectSettings.h"
 #include "WifiManager.h"
@@ -135,7 +136,7 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
   // so OtaUpdater repeats these checks itself.
   _server->addMiddleware([this](AsyncWebServerRequest* request, ArMiddlewareNext next) {
     const String& url = request->url();
-    const bool api = url.startsWith("/api/") || url == "/ws" || url == "/update";
+    const bool api = WebGuard::guardedPath(url.c_str());
     if (api && !trustedOrigin(request)) {
       LOG_W("web: refused %s from %s (cross-origin or foreign host \"%s\")", url.c_str(), request->client()->remoteIP().toString().c_str(),
             request->host().c_str());
@@ -149,6 +150,11 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
     }
     next();
   });
+
+  _appLink = !cfg.appPage.isEmpty() && WebGuard::appPath(cfg.appPage.c_str());
+  if (!cfg.appPage.isEmpty() && !_appLink) {
+    LOG_E("web: appPage \"%s\" refused: the console login only covers /app/", cfg.appPage.c_str());
+  }
 
   setupRoutes();
   _server->addHandler(&_ws);
@@ -265,6 +271,16 @@ void WebConsole::setupRoutes() {
       request->send(200, "application/json", "{\"ok\":true}");
     }
   }).setMaxContentLength(kMaxSettingsBody);
+
+  s.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest* request) {
+    AsyncJsonResponse* response = new AsyncJsonResponse();
+    JsonObject root = response->getRoot().to<JsonObject>();
+    if (_status != nullptr) {
+      _status->writeJson(root);
+    }
+    response->setLength();
+    request->send(response);
+  });
 
   s.on("/api/info", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
@@ -714,8 +730,14 @@ void WebConsole::writeInfo(JsonObject o) {
   const WifiState state = _wifi->state();
   const String& landing = _cfg->apLandingTab;
   if ((state == WifiState::ApFallback || state == WifiState::ApOnly) &&
-      (landing == "wifi" || (landing == "settings" && _settings != nullptr && _settings->count() > 0))) {
+      (landing == "wifi" || (landing == "settings" && _settings != nullptr && _settings->count() > 0) ||
+       (landing == "device" && _status != nullptr && !_status->empty()))) {
     o["landing"] = landing;
+  }
+  if (_appLink) {  // the project's own page, linked from the tab bar
+    JsonObject app = o["app"].to<JsonObject>();
+    app["path"] = _cfg->appPage;
+    app["title"] = _cfg->appPageTitle.isEmpty() ? String("App") : _cfg->appPageTitle;
   }
   o["fw"] = _cfg->fwVersion;
   o["build"] = __DATE__ " " __TIME__;

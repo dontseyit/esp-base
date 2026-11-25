@@ -82,4 +82,15 @@ inline bool originMatches(const char* origin, const char* host) {
   return sep != nullptr && host != nullptr && strcasecmp(sep + 3, host) == 0;
 }
 
+// The project's own pages: "/app" and everything below "/app/".
+inline bool appPath(const char* url) {
+  return url != nullptr && strncmp(url, "/app", 4) == 0 && (url[4] == '\0' || url[4] == '/');
+}
+
+// Paths that pass the origin check and, with a password, the login before any
+// handler runs: the API, the WebSocket, uploads and the project's pages.
+inline bool guardedPath(const char* url) {
+  return url != nullptr && (strncmp(url, "/api/", 5) == 0 || strcmp(url, "/ws") == 0 || strcmp(url, "/update") == 0 || appPath(url));
+}
+
 }  // namespace WebGuard

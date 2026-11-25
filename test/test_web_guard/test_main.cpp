@@ -46,10 +46,31 @@ static void test_origin() {
   TEST_ASSERT_FALSE(WebGuard::originMatches("null", "dev.local"));
 }
 
+static void test_guarded_paths() {
+  TEST_ASSERT_TRUE(WebGuard::appPath("/app"));
+  TEST_ASSERT_TRUE(WebGuard::appPath("/app/"));
+  TEST_ASSERT_TRUE(WebGuard::appPath("/app/index.html"));
+  TEST_ASSERT_FALSE(WebGuard::appPath("/apps"));
+  TEST_ASSERT_FALSE(WebGuard::appPath("/application"));
+  TEST_ASSERT_FALSE(WebGuard::appPath("/dashboard"));
+  TEST_ASSERT_FALSE(WebGuard::appPath(nullptr));
+
+  TEST_ASSERT_TRUE(WebGuard::guardedPath("/api/info"));
+  TEST_ASSERT_TRUE(WebGuard::guardedPath("/ws"));
+  TEST_ASSERT_TRUE(WebGuard::guardedPath("/update"));
+  TEST_ASSERT_TRUE(WebGuard::guardedPath("/app/"));
+  TEST_ASSERT_TRUE(WebGuard::guardedPath("/app/data.json"));
+  TEST_ASSERT_FALSE(WebGuard::guardedPath("/"));  // the page: login only, see WebConsole
+  TEST_ASSERT_FALSE(WebGuard::guardedPath("/api"));
+  TEST_ASSERT_FALSE(WebGuard::guardedPath("/apps"));
+  TEST_ASSERT_FALSE(WebGuard::guardedPath("/generate_204"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_utf8);
   RUN_TEST(test_host);
   RUN_TEST(test_origin);
+  RUN_TEST(test_guarded_paths);
   return UNITY_END();
 }

@@ -7,9 +7,11 @@
 Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 8 KB.
 
 - **Console**: live log with level and text filter, command line with history (arrow keys).
+- **Device**: the project's own values and buttons, when it defines any. See [The Device tab](#the-device-tab).
 - **WiFi**: stored networks, primary and backup entry, scan, mode and timers.
 - **Update**: firmware upload.
 - **Info**: device summary as JSON.
+- A link to the project's own page, when `cfg.appPage` names one. See [A page of your own](#a-page-of-your-own).
 
 ## Built-in commands
 
@@ -41,6 +43,26 @@ base.console().addCommand("led",
 - Registering an existing name replaces its handler.
 - To accept commands on Serial too, pass each line to `base.console().execute(line, Serial)`. The example does this.
 
+## The Device tab
+
+Values and buttons of your own, shown in the page's **Device** tab. The tab appears once you define one.
+
+```cpp
+// setup(), after base.begin()
+base.status().add("temp", "Temperature");
+base.status().add("relay", "Relay");
+base.status().addButton("Toggle relay", "relay toggle");   // runs that console command
+
+// loop() or any task, whenever a value changes
+base.status().set("temp", String(sensor.read(), 1) + " C");
+base.status().set("relay", relayOn ? "on" : "off");
+```
+
+- Your code pushes values with `set()`, from any task but not from an ISR. The web server serves the stored copies, so none of your code runs on its task.
+- A button runs its command as if it were typed in the console: the same handler, login and log. The command's output shows under the buttons. Register the command with `addCommand()` as usual.
+- Up to 16 values and 8 buttons. A value is cut at 127 bytes. Keys and labels must outlive `base`, which string literals do.
+- The page shows everything as text and refreshes the tab every 2 s while it is open. `apLandingTab = "device"` opens on it while the device is its own access point.
+
 ## Adding an HTTP route
 
 ```cpp
@@ -57,14 +79,28 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 - Register routes in `setup()` after `base.begin()`.
 - Handlers run on the async_tcp task. Never block or call `delay()`. Reading state is fine; hand changes to the loop task with a flag or a queue.
 - JSON bodies use ArduinoJson 7 through the handler signature shown above.
-- Routes under `/api/` get the origin check and the login for free. Put anything that changes state there.
+- Routes under `/api/` and `/app/` get the origin check and, with a password, the login before your handler runs. Put anything that changes state under `/api/`.
+
+### A page of your own
+
+For a UI beyond values and buttons, serve your own page under `/app/` and name it in the config. The console then shows a link to it in its tab bar.
+
+```cpp
+cfg.appPage = "/app/";          // before base.begin()
+cfg.appPageTitle = "Dashboard";
+base.begin(cfg);
+base.web().on("/app/", HTTP_GET, [](AsyncWebServerRequest* r) { r->send(200, "text/html", kDashboardHtml); });
+```
+
+- Everything under `/app/` is behind the console login, so the page's own calls to `/api/...` need no login of their own. A page anywhere else is public, even with a password set, and `appPage` refuses it with an error in the log.
+- The page is yours: its HTML, scripts and Content-Security-Policy. Serve it from flash (`PROGMEM`, gzipped) or from LittleFS with `serveStatic("/app/", LittleFS, "/www/")`.
 
 ## HTTP routes
 
 | Route | Description |
 | --- | --- |
 | `GET /` | The console page, `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). |
-| `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `hostname`, `mac`, `wifi{state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`. |
+| `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `hostname`, `mac`, `wifi{state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`, and `app{path,title}` when `cfg.appPage` is set. |
 | `GET /api/log` | The ring buffer as text. |
 | `GET /api/ws-ticket` | `{"ticket":"..."}`, a single-use WebSocket ticket valid for 30 s. |
 | `GET /api/wifi` | `{"mode","state","ssid","ip","rssi","ap":{...},"settings":{"staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"},"maxSlots":5,"networks":[{"slot","ssid","hasPassword"}]}`. |
@@ -75,11 +111,12 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 | `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
 | `GET /api/settings` | `{"settings":[{"key","label","kind":"text\|secret\|choice","value","set","choices":[...],"hint","maxLen"}]}`: the project's settings. A secret never has a `value`. |
 | `POST /api/settings` | `{"<key>":"<value>"\|null, ...}`. Every pair is checked first, and one bad pair changes nothing: 400 with an `error` that names the key. 503 while too many requests wait. 200 means the request passed the checks; the loop task writes it a moment later, and a write that fails there (NVS full, say) is logged while the other keys still change. `null` clears a value; `""` clears a text or a choice and leaves a secret as it is. |
+| `GET /api/status` | `{"values":[{"key","label","value"}],"buttons":[{"label","cmd"}]}`: the project's values and buttons. |
 | `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions; absent with `-DESPBASE_NO_APPS`. See [Apps](Apps.md#console-and-api). |
 | `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
 | `GET /ws` | WebSocket. |
 
-While the device is its own access point and `apLandingTab` is set, `/api/info` also carries `"landing":"wifi"` or `"landing":"settings"`, and the page opens on that tab.
+While the device is its own access point and `apLandingTab` is set, `/api/info` also carries `"landing":"wifi"`, `"settings"` or `"device"`, and the page opens on that tab.
 
 Any other path returns 404, except while the AP is up: requests that arrive through the AP interface for a foreign host (the connectivity probes phones and laptops send) are redirected to the portal.
 
