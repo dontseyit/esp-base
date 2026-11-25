@@ -74,7 +74,7 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 | `POST /api/wifi/scan` | Start a scan: 202, or 409 when busy. |
 | `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
 | `GET /api/settings` | `{"settings":[{"key","label","kind":"text\|secret\|choice","value","set","choices":[...],"hint","maxLen"}]}`: the project's settings. A secret never has a `value`. |
-| `POST /api/settings` | `{"<key>":"<value>"\|null, ...}`. Every pair is checked, then all are applied on the loop task or none: 400 with an `error` that names the key, 503 while too many requests wait. `null` clears a value; `""` clears a text or a choice and leaves a secret as it is. |
+| `POST /api/settings` | `{"<key>":"<value>"\|null, ...}`. Every pair is checked first, and one bad pair changes nothing: 400 with an `error` that names the key. 503 while too many requests wait. 200 means the request passed the checks; the loop task writes it a moment later, and a write that fails there (NVS full, say) is logged while the other keys still change. `null` clears a value; `""` clears a text or a choice and leaves a secret as it is. |
 | `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions. See [Apps](Apps.md#console-and-api). |
 | `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
 | `GET /ws` | WebSocket. |

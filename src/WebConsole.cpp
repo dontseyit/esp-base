@@ -213,10 +213,11 @@ void WebConsole::setupRoutes() {
     request->send(response);
   });
 
-  // {"<key>": "<value>" | null, ...}: all of it or none. null clears a value;
-  // "" clears a Text or Choice and leaves a Secret as it is (the form sends an
-  // untouched secret field empty). This runs on the web server's task: it only
-  // checks, then hands the changes to the loop task.
+  // {"<key>": "<value>" | null, ...}: one bad pair refuses the whole request.
+  // null clears a value; "" clears a Text or Choice and leaves a Secret as it
+  // is (the form sends an untouched secret field empty). This runs on the web
+  // server's task: it only checks, then hands the changes to the loop task,
+  // which writes them after this answer (ProjectSettings::loop()).
   s.on("/api/settings", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
     const char* keys[ProjectSettings::kMaxSettings];
     String values[ProjectSettings::kMaxSettings];

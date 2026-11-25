@@ -72,6 +72,8 @@ class ProjectSettings {
 
   // Any task: hands checked changes over to loop(), all of them or none. A
   // true in isNull clears that key. false for an unknown key or a full queue.
+  // loop() writes them in order; a write that fails there is logged and the
+  // others still apply (NVS cannot commit several keys as one).
   bool queue(const char* const* keys, const String* values, const bool* isNull, size_t n);
 
   // Loop task, after a value changed.
