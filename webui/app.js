@@ -85,6 +85,8 @@
   // So do "config set" commands for the project's secret settings.
   const SECRET = /^\s*(wifi\s+(set|add)|config\s+set\s+\S*pass)\b/i;
   const isSecretCmd = (c) => SECRET.test(c) || secretKeys.some((k) => new RegExp('^\\s*config\\s+set\\s+' + k + '\\b', 'i').test(c));
+  // Nothing is stored until /api/settings has named the secret keys (secretKeys is null till then).
+  const keepHist = () => { if (secretKeys) save('hist', JSON.stringify(hist.filter((h) => !isSecretCmd(h)))); };
   let hist = [];
   try { hist = JSON.parse(load('hist', '[]')); } catch (e) { hist = []; }
   let hi = hist.length;
@@ -102,7 +104,7 @@
     if (hist[hist.length - 1] !== c) hist.push(c);
     if (hist.length > 50) hist.shift();
     hi = hist.length;
-    save('hist', JSON.stringify(hist.filter((h) => !isSecretCmd(h))));
+    keepHist();
   });
   cmdEl.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp') {
@@ -259,7 +261,7 @@
   // as text, never as markup. A secret's value never reaches the page: its
   // field is empty and only says whether one is saved.
   let shown = {};       // key -> the value its field was given, so only changes are posted
-  let secretKeys = [];  // for the console's history, which must not keep them
+  let secretKeys = null;  // for the console's history, which must not keep them; null until the device names them
   let saving = false;
   const settingsFields = () => [...$('#settingsform').querySelectorAll('[name]')];
   const settingsDirty = () => settingsFields().some((f) => f.value !== shown[f.name]);
@@ -271,7 +273,10 @@
     try { r = await api('/api/settings'); } catch (e) { return; }
     const list = r.settings || [];
     document.querySelector('.tab[data-panel="settings"]').hidden = !list.length;
-    secretKeys = list.filter((s) => s.kind === 'secret').map((s) => s.key);
+    if (r.settings) {  // an error answer names no keys: keep not storing
+      secretKeys = list.filter((s) => s.kind === 'secret').map((s) => s.key);
+      keepHist();  // also scrubs what an earlier page stored before it knew the keys
+    }
     if (settingsDirty()) return;  // never write over what was typed and not saved
     const form = $('#settingsform');
     const row = form.querySelector('.row');
