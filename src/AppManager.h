@@ -54,6 +54,9 @@ class AppManager {
   bool inputFromISR(const InputEvent& ev);
   bool key(uint8_t code, int32_t value = 0);  // convenience: a Press event
 
+  // The boot_app key ("config set", "app boot"): a registered app's id, or "" to clear it.
+  bool applySetting(const char* key, const String& value, String& err);
+
   void setIdleTimeout(uint32_t ms) { _idleTimeoutMs = ms; }  // pop to root after this long without input; 0 = off
   void setTickBudget(uint32_t us) { _tickBudgetUs = us; }    // slower ticks count as overruns and are logged
   uint32_t loopsPerSecond() const { return _loopHz; }

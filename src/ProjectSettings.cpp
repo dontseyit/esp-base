@@ -28,7 +28,7 @@ bool ProjectSettings::add(const SettingDef& def) {
     why = "label, def, choices and hint must not be null";
   } else if (!SettingsCheck::validKey(d.key)) {
     why = "the key must be 1..15 of a-z, 0-9 and '_'";
-  } else if (EspBaseKeys::isLibraryKey(d.key)) {
+  } else if (EspBaseKeys::find(d.key) != nullptr) {
     why = "the key is one of the library's own";
   } else if (find(d.key) != nullptr) {
     why = "the key is already defined";

@@ -53,9 +53,9 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 | `ap_pass` | `config set` | after a reboot |
 | `web_pass` | `config set` | after a reboot |
 | `log_lvl` | `log level` | immediately |
-| `boot_app` | `app boot`, replacing the root app | next start |
+| `boot_app` | `app boot`, `config set`, replacing the root app | next start |
 
-`config list` shows every key with secrets masked. A value with spaces goes in quotes: `config set city "New York"`. `config set` validates WiFi keys the same way the WiFi tab does, and accepts only letters, digits and `-` in a hostname.
+`config list` shows every key with secrets masked. A value with spaces goes in quotes: `config set city "New York"`. `config set` validates WiFi keys the same way the WiFi tab does, accepts only letters, digits and `-` in a hostname, and only a registered app's id in `boot_app` (`""` clears it).
 
 ## Project settings
 
