@@ -3,15 +3,6 @@
 #include <esp_arduino_version.h>
 
 namespace {
-bool knownKey(const String& key) {
-  for (const char* const* k = EspBaseKeys::All; *k != nullptr; ++k) {
-    if (key == *k) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Network slot (1..) of a sta*_ssid / sta*_pass key, 0 for any other key.
 uint8_t slotOf(const char* key) {
   uint8_t slot = 0;
@@ -348,7 +339,7 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
     }
     return;
   }
-  if (!knownKey(key)) {
+  if (!EspBaseKeys::isLibraryKey(key.c_str())) {
     out.println("unknown key (see: config list)");
     return;
   }
@@ -376,7 +367,7 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
       out.println("write failed");
     }
   } else if (key == EspBaseKeys::ApPass || key == EspBaseKeys::WebPass) {
-    if (!value.isEmpty() && (value.length() < 8 || value.length() > 63)) {
+    if (!EspBaseKeys::validPassword(value)) {
       out.printf("%s must be empty or 8..63 chars\r\n", key.c_str());
     } else if (_store.setString(key.c_str(), value)) {
       out.printf("%s saved (takes effect after reboot)\r\n", key.c_str());

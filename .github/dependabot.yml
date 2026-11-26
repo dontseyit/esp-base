@@ -1,0 +1,10 @@
+# Keeps the SHA pins in .github/workflows current, with their tag comments.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -41,7 +41,6 @@
       "webui",
       "tools",
       "platformio.ini",
-      "PROJECT.md",
       "docs",
       "test"
     ]

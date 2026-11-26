@@ -33,6 +33,10 @@ bool isSlotKey(const char* key, uint8_t& slot, bool& isPass);
 extern const char* const All[];
 // Keys whose values are masked in console output (every *_pass key).
 bool isSecret(const char* key);
+// One of All[]: a key a project's own setting may not take.
+bool isLibraryKey(const char* key);
+// The rule for every *_pass key: empty, or 8..63 characters (WPA2).
+bool validPassword(const String& value);
 }  // namespace EspBaseKeys
 
 class ConfigStore {

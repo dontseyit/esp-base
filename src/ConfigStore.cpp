@@ -23,6 +23,9 @@ const char* const All[] = {StaSsid,   StaPass,   "sta2_ssid", "sta2_pass", "sta3
                            BootApp,
 #endif
                            nullptr};
+// All[] spells the slot keys out. Without them a project's setting could take
+// a slot's key, and WifiManager would read it as a stored network.
+static_assert(kMaxStaSlots == 5, "list every slot's keys in EspBaseKeys::All[]");
 
 bool isSecret(const char* key) {
   if (key == nullptr) {
@@ -30,6 +33,22 @@ bool isSecret(const char* key) {
   }
   const size_t n = strlen(key);
   return n >= 5 && strcmp(key + n - 5, "_pass") == 0;
+}
+
+bool isLibraryKey(const char* key) {
+  if (key == nullptr) {
+    return false;
+  }
+  for (const char* const* k = All; *k != nullptr; ++k) {
+    if (strcmp(key, *k) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool validPassword(const String& value) {
+  return value.isEmpty() || (value.length() >= 8 && value.length() <= 63);
 }
 
 const char* slotSsidKey(uint8_t slot, char* buf, size_t len) {

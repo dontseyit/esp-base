@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- A console password (`webPassword` or `web_pass`) outside 8..63 characters logs a warning at boot. It is still used.
+
+### Fixed
+
+- `POST /api/settings` refused a save of many long settings at once: bodies were capped at 4 KB, and a project's 24 settings at 255 bytes need about 6.6 KB. The cap is now 8 KB.
+- `tools/build_web.py` failed with a `TypeError` on Python 3.9, the `python3` that ships with macOS.
+
 ## [1.4.0] - 2026-11-26
 
 ### Added

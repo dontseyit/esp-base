@@ -48,7 +48,7 @@ const char* ssidError(const String& ssid) {
 }
 
 const char* passError(const String& pass) {
-  return (!pass.isEmpty() && (pass.length() < 8 || pass.length() > 63)) ? "password must be empty or 8..63 chars" : nullptr;
+  return EspBaseKeys::validPassword(pass) ? nullptr : "password must be empty or 8..63 chars";
 }
 
 bool validCredentials(const String& ssid, const String& pass) {

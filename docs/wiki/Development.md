@@ -44,11 +44,11 @@ Before a release, check on each tier 1 board: the AP appears when no network is 
 
 | Job | Does |
 | --- | --- |
-| checks | `build_web.py --check` and the host unit tests |
-| build | all six targets; fails on any compiler warning from `src/` or `examples/` |
+| checks | `build_web.py --check`, the version check (below) and the host unit tests |
+| build | the six chip targets and `esp32-lean`; fails on any compiler warning from `src/` or `examples/` |
 | release | on `X.Y.Z` tags, attaches `esp-base-minimal-<env>.bin` for each target to the GitHub release |
 
-Actions are pinned to commit SHAs, the default token is read-only, and PlatformIO and the platform are pinned to fixed versions.
+Actions are pinned to commit SHAs, which Dependabot updates once a month (`.github/dependabot.yml`). The default token is read-only, and PlatformIO and the platform are pinned to fixed versions.
 
 ## Extending the library
 
@@ -73,4 +73,4 @@ Actions are pinned to commit SHAs, the default token is read-only, and PlatformI
 
 The project uses semantic versioning. Adding a config field with a default, a command, a route or a JSON field is a minor release. Renaming or removing a field, changing a default that alters behaviour, changing a persisted key or the WebSocket message shapes is a major release. Fixes are patch releases.
 
-To release: bump `version` in `library.json`, `ESPBASE_VERSION` in `EspBaseConfig.h` and the pinned tag in `README.md` and `Getting-Started.md`, update `CHANGELOG.md`, push, then publish a GitHub release with the new tag `X.Y.Z` (no `v`) on that commit. The tag starts the release job, which attaches the example binaries; the notes written when publishing are kept. Consumers pin the tag in `lib_deps`.
+To release: bump `version` in `library.json`, `ESPBASE_VERSION` in `EspBaseConfig.h` and the pinned tag in `README.md` and `Getting-Started.md`, update `CHANGELOG.md`, push (CI fails while the four versions differ, or when the release tag does not match them), then publish a GitHub release with the new tag `X.Y.Z` (no `v`) on that commit. The tag starts the release job, which attaches the example binaries; the notes written when publishing are kept. Consumers pin the tag in `lib_deps`.

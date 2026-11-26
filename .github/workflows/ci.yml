@@ -24,6 +24,17 @@ jobs:
           python-version: "3.12"
       - name: Generated header must match webui/
         run: python tools/build_web.py --check
+      # The release steps bump the version in four places; a release tag must match it too.
+      - name: Version in library.json everywhere
+        run: |
+          v=$(python -c "import json; print(json.load(open('library.json'))['version'])")
+          grep -qF "ESPBASE_VERSION \"$v\"" src/EspBaseConfig.h || { echo "::error::ESPBASE_VERSION is not $v (library.json)"; exit 1; }
+          for f in README.md docs/wiki/Getting-Started.md; do
+            grep -qF "esp-base.git#$v" "$f" || { echo "::error::$f does not pin #$v (library.json)"; exit 1; }
+          done
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$v" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match library.json $v"; exit 1
+          fi
       - name: Install PlatformIO Core
         run: pip install platformio==6.1.19
       - name: Host unit tests

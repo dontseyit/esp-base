@@ -14,6 +14,8 @@ hash).
 raw gzip bytes, so a different zlib on the developer machine cannot cause a
 false failure in CI.
 """
+from __future__ import annotations  # the type hints below need Python 3.10 without it
+
 import argparse
 import base64
 import gzip
