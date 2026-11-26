@@ -20,7 +20,9 @@ constexpr size_t kMaxWsMessage = 512;
 constexpr uint32_t kCleanupIntervalMs = 1000;
 constexpr int kMaxFramesPerLoop = 4;
 constexpr size_t kMaxJsonBody = 1024;        // API request bodies
-constexpr size_t kMaxSettingsBody = 4096;    // POST /api/settings: several values of up to 255 bytes
+// POST /api/settings: all 24 settings at 255 bytes, keys included, are about
+// 6.6 KB. The server allocates the body before the login check runs.
+constexpr size_t kMaxSettingsBody = 8192;
 constexpr uint32_t kTicketMs = 30000;        // WebSocket ticket lifetime
 constexpr uint8_t kMaxAuthFailures = 5;      // then logins are refused for kLockoutMs
 constexpr uint32_t kLockoutMs = 30000;
@@ -188,6 +190,8 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
   }
   if (!authRequired()) {
     LOG_W("web: no console password, anyone on the network can control this device (cfg.webPassword or \"config set web_pass\")");
+  } else if (!EspBaseKeys::validPassword(_password)) {
+    LOG_W("web: the console password should be 8..63 chars");
   }
 }
 
@@ -426,7 +430,7 @@ void WebConsole::setupRoutes() {
     if (slot >= 1 && slot <= WifiManager::kMaxSlots && _wifi->removeCredentials(static_cast<uint8_t>(slot))) {
       request->send(200, "application/json", "{\"ok\":true}");
     } else {
-      request->send(400, "application/json", "{\"ok\":false,\"error\":\"slot 1..5 required\"}");
+      request->send(400, "application/json", String("{\"ok\":false,\"error\":\"slot 1..") + WifiManager::kMaxSlots + " required\"}");
     }
   });
 

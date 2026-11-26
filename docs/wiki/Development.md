@@ -44,17 +44,17 @@ Before a release, check on each tier 1 board: the AP appears when no network is 
 
 | Job | Does |
 | --- | --- |
-| checks | `build_web.py --check` and the host unit tests |
-| build | all six targets; fails on any compiler warning from `src/` or `examples/` |
+| checks | `build_web.py --check`, the version check (below) and the host unit tests |
+| build | the six chip targets and `esp32-lean`; fails on any compiler warning from `src/` or `examples/` |
 | release | on `X.Y.Z` tags, attaches `esp-base-minimal-<env>.bin` for each target to the GitHub release |
 
-Actions are pinned to commit SHAs, the default token is read-only, and PlatformIO and the platform are pinned to fixed versions.
+Actions are pinned to commit SHAs, which Dependabot updates once a month (`.github/dependabot.yml`). The default token is read-only, and PlatformIO and the platform are pinned to fixed versions.
 
 ## Extending the library
 
 - A new module is a class with `begin()` and `loop()`. Make it a member of `EspBase`, start it in `EspBase::begin()`, call it from `EspBase::loop()` and expose it through an accessor.
 - Work that arrives from other tasks goes through a queue or a flag; only the loop task changes state.
-- A new persisted key goes into `EspBaseKeys` and into `All[]` in `ConfigStore.cpp`, so `config list|get|set` know it. Keys are 15 characters max.
+- A new persisted key gets a name in `EspBaseKeys` and one row in `Defs[]` in `ConfigStore.cpp`: its type (how `config` shows it), the module whose `applySetting()` checks, stores and applies a value from `config set`, and whether that value waits for a reboot. `config list|get|set` and the check that keeps a project's settings off the library's keys need nothing more. Keys are 15 characters max; `test/test_config_keys` checks the table.
 - A chip difference becomes a function in `ChipInfo.h`. There is no `#if` on targets anywhere else.
 - Commands are registered in `EspBase::registerBuiltins()` or in the module's `begin()`.
 
@@ -73,4 +73,4 @@ Actions are pinned to commit SHAs, the default token is read-only, and PlatformI
 
 The project uses semantic versioning. Adding a config field with a default, a command, a route or a JSON field is a minor release. Renaming or removing a field, changing a default that alters behaviour, changing a persisted key or the WebSocket message shapes is a major release. Fixes are patch releases.
 
-To release: bump `version` in `library.json`, `ESPBASE_VERSION` in `EspBaseConfig.h` and the pinned tag in `README.md` and `Getting-Started.md`, update `CHANGELOG.md`, push, then publish a GitHub release with the new tag `X.Y.Z` (no `v`) on that commit. The tag starts the release job, which attaches the example binaries; the notes written when publishing are kept. Consumers pin the tag in `lib_deps`.
+To release: bump `version` in `library.json`, `ESPBASE_VERSION` in `EspBaseConfig.h` and the pinned tag in `README.md` and `Getting-Started.md`, update `CHANGELOG.md`, push (CI fails while the four versions differ, or when the release tag does not match them), then publish a GitHub release with the new tag `X.Y.Z` (no `v`) on that commit. The tag starts the release job, which attaches the example binaries; the notes written when publishing are kept. Consumers pin the tag in `lib_deps`.

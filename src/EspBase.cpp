@@ -3,15 +3,6 @@
 #include <esp_arduino_version.h>
 
 namespace {
-bool knownKey(const String& key) {
-  for (const char* const* k = EspBaseKeys::All; *k != nullptr; ++k) {
-    if (key == *k) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Network slot (1..) of a sta*_ssid / sta*_pass key, 0 for any other key.
 uint8_t slotOf(const char* key) {
   uint8_t slot = 0;
@@ -209,14 +200,12 @@ void EspBase::registerBuiltins() {
             out.printf("log level: %s\r\n", LogClass::levelName(Log.level()));
             return;
           }
-          LogLevel lvl;
-          if (!LogClass::parseLevel(a[1].c_str(), lvl)) {
-            out.println("usage: log level e|w|i|d");
-            return;
+          String err;
+          if (setConfig(*EspBaseKeys::find(EspBaseKeys::LogLevelKey), a[1], err)) {
+            out.printf("log level set to %s (persisted)\r\n", LogClass::levelName(Log.level()));
+          } else {
+            out.println(err);
           }
-          Log.setLevel(lvl);
-          _store.setUChar(EspBaseKeys::LogLevelKey, static_cast<uint8_t>(lvl));
-          out.printf("log level set to %s (persisted)\r\n", LogClass::levelName(lvl));
         } else if (a.is(0, "dump")) {
           Log.dump(out);
         } else {
@@ -288,20 +277,66 @@ void EspBase::wifiCommand(const CmdArgs& a, Print& out) {
   }
 }
 
-void EspBase::showConfigKey(const char* key, bool skipUnset, Print& out) {
+void EspBase::showConfigKey(const EspBaseKeys::Def& def, bool skipUnset, Print& out) {
+  using EspBaseKeys::Type;
+  const char* key = def.key;
   if (!_store.has(key)) {
     if (!skipUnset) {
       out.printf("  %-14s (unset)\r\n", key);
     }
-  } else if (strcmp(key, EspBaseKeys::LogLevelKey) == 0) {
+  } else if (def.type == Type::Level) {
     out.printf("  %-14s %s\r\n", key, LogClass::levelName(static_cast<LogLevel>(_store.getUChar(key))));
-  } else if (strcmp(key, EspBaseKeys::StaTimeout) == 0 || strcmp(key, EspBaseKeys::ReconnTimeout) == 0 || strcmp(key, EspBaseKeys::ApRetry) == 0) {
+  } else if (def.type == Type::Ms) {
     out.printf("  %-14s %ld ms\r\n", key, static_cast<long>(_store.getInt(key)));
-  } else if (EspBaseKeys::isSecret(key)) {
+  } else if (def.type == Type::Secret) {
     out.printf("  %-14s ******** (%u chars)\r\n", key, static_cast<unsigned>(_store.getString(key).length()));
   } else {
     out.printf("  %-14s %s\r\n", key, _store.getString(key).c_str());
   }
+}
+
+// "config set" of a library key. The module that owns the key checks, stores
+// and applies the value; EspBase owns the rest.
+bool EspBase::setConfig(const EspBaseKeys::Def& def, const String& value, String& err) {
+  using EspBaseKeys::Owner;
+  using EspBaseKeys::Type;
+  if (def.owner == Owner::Wifi) {
+    return _wifi.applySetting(def.key, value, err);
+  }
+#ifndef ESPBASE_NO_APPS
+  if (def.owner == Owner::Apps) {
+    return _apps.applySetting(def.key, value, err);
+  }
+#endif
+  bool ok = false;
+  if (def.type == Type::Level) {
+    LogLevel lvl;
+    if (!LogClass::parseLevel(value.c_str(), lvl)) {
+      err = String(def.key) + " must be one of e w i d";
+      return false;
+    }
+    Log.setLevel(lvl);
+    ok = _store.setUChar(def.key, static_cast<uint8_t>(lvl));
+  } else if (def.type == Type::Secret) {
+    if (!EspBaseKeys::validPassword(value)) {
+      err = String(def.key) + " must be empty or 8..63 chars";
+      return false;
+    }
+    ok = _store.setString(def.key, value);
+  } else if (def.type == Type::Text) {
+    if (strcmp(def.key, EspBaseKeys::Hostname) == 0 && !validHostname(value)) {
+      err = "hostname must be 1..32 letters, digits or '-', not starting or ending with '-'";
+      return false;
+    }
+    ok = _store.setString(def.key, value);
+  } else {
+    err = String(def.key) + ": EspBase has no check for this type";  // a range belongs to the module that owns it
+    return false;
+  }
+  if (!ok) {
+    err = "write failed";
+  }
+  return ok;
 }
 
 // One line for a project setting. A Secret never shows its value.
@@ -315,8 +350,8 @@ void EspBase::showSetting(const SettingDef& def, Print& out) {
 
 void EspBase::configCommand(const CmdArgs& a, Print& out) {
   if (!a.has(0) || a.is(0, "list")) {
-    for (const char* const* k = EspBaseKeys::All; *k != nullptr; ++k) {
-      showConfigKey(*k, slotOf(*k) > 1, out);  // unset backup slots are noise
+    for (const EspBaseKeys::Def* d = EspBaseKeys::Defs; d->key != nullptr; ++d) {
+      showConfigKey(*d, slotOf(d->key) > 1, out);  // unset backup slots are noise
     }
     for (size_t i = 0; i < _settings.count(); ++i) {
       showSetting(*_settings.at(i), out);
@@ -348,48 +383,21 @@ void EspBase::configCommand(const CmdArgs& a, Print& out) {
     }
     return;
   }
-  if (!knownKey(key)) {
+  const EspBaseKeys::Def* entry = EspBaseKeys::find(key.c_str());
+  if (entry == nullptr) {
     out.println("unknown key (see: config list)");
     return;
   }
   if (a.is(0, "get")) {
-    showConfigKey(key.c_str(), false, out);
+    showConfigKey(*entry, false, out);
     return;
   }
-
-  const String& value = a[2];
-  if (key == EspBaseKeys::LogLevelKey) {
-    LogLevel lvl;
-    if (LogClass::parseLevel(value.c_str(), lvl)) {
-      Log.setLevel(lvl);
-      _store.setUChar(EspBaseKeys::LogLevelKey, static_cast<uint8_t>(lvl));
-      out.printf("log level set to %s\r\n", LogClass::levelName(lvl));
-    } else {
-      out.println("log_lvl must be one of e w i d");
-    }
-  } else if (key == EspBaseKeys::Hostname) {
-    if (!validHostname(value)) {
-      out.println("hostname must be 1..32 letters, digits or '-', not starting or ending with '-'");
-    } else if (_store.setString(key.c_str(), value)) {
-      out.println("hostname saved (takes effect after reboot)");
-    } else {
-      out.println("write failed");
-    }
-  } else if (key == EspBaseKeys::ApPass || key == EspBaseKeys::WebPass) {
-    if (!value.isEmpty() && (value.length() < 8 || value.length() > 63)) {
-      out.printf("%s must be empty or 8..63 chars\r\n", key.c_str());
-    } else if (_store.setString(key.c_str(), value)) {
-      out.printf("%s saved (takes effect after reboot)\r\n", key.c_str());
-    } else {
-      out.println("write failed");
-    }
+  String err;
+  if (!setConfig(*entry, a[2], err)) {
+    out.println(err);
+  } else if (entry->atReboot) {
+    out.printf("%s saved (takes effect after reboot)\r\n", entry->key);
   } else {
-    // wifi_mode, timeouts and network slots: validated and applied live by WifiManager
-    String err;
-    if (_wifi.applySetting(key.c_str(), value, err)) {
-      out.printf("%s saved%s\r\n", key.c_str(), slotOf(key.c_str()) > 0 ? " (use \"wifi reconnect\" or \"wifi set\" to connect now)" : "");
-    } else {
-      out.println(err);
-    }
+    out.printf("%s saved%s\r\n", entry->key, slotOf(entry->key) > 0 ? " (use \"wifi reconnect\" or \"wifi set\" to connect now)" : "");
   }
 }

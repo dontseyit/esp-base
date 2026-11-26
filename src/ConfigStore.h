@@ -29,10 +29,30 @@ const char* slotSsidKey(uint8_t slot, char* buf, size_t len);
 const char* slotPassKey(uint8_t slot, char* buf, size_t len);
 // Recognises slot keys; sets slot (1..kMaxStaSlots) and whether it is the password key.
 bool isSlotKey(const char* key, uint8_t& slot, bool& isPass);
-// Keys the built-in "config" command knows about, nullptr terminated.
-extern const char* const All[];
-// Keys whose values are masked in console output (every *_pass key).
-bool isSecret(const char* key);
+
+// The library's keys, one entry each in Defs[]. "config list|get|set" go by
+// it, and a project's own setting may not take one of these keys.
+enum class Type : uint8_t {
+  Text,
+  Secret,  // config shows it masked
+  Ms,      // int32_t milliseconds
+  Level,   // a LogLevel, stored as a uint8_t
+};
+// The module whose applySetting() checks, stores and applies "config set".
+enum class Owner : uint8_t { Base, Wifi, Apps };
+struct Def {
+  const char* key;
+  Type type;
+  Owner owner;
+  bool atReboot = false;  // a new value applies after a reboot
+};
+// In "config list" order; the last entry's key is nullptr.
+extern const Def Defs[];
+// The key's entry, nullptr when the key is not one of the library's.
+const Def* find(const char* key);
+
+// The rule for every *_pass key: empty, or 8..63 characters (WPA2).
+bool validPassword(const String& value);
 }  // namespace EspBaseKeys
 
 class ConfigStore {

@@ -5,7 +5,7 @@
 
 #include "Log.h"
 
-#define ESPBASE_VERSION "1.4.0"
+#define ESPBASE_VERSION "1.5.0"
 
 #ifndef FW_VERSION
 #define FW_VERSION "0.0.0"

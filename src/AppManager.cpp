@@ -89,14 +89,16 @@ void AppManager::attach(EspBase& base) {
           if (!a.has(1)) {
             const String id = _base->config().getString(EspBaseKeys::BootApp);
             out.printf("boot app: %s\r\n", id.isEmpty() ? "(none, home is used)" : id.c_str());
-          } else if (a[1] == "-") {
-            _base->config().remove(EspBaseKeys::BootApp);
-            out.println("boot app cleared");
-          } else if (AppRegistry::find(a[1].c_str()) != nullptr) {
-            _base->config().setString(EspBaseKeys::BootApp, a[1]);
-            out.printf("boot app set to %s\r\n", a[1].c_str());
           } else {
-            out.println("unknown app");
+            const String id = a[1] == "-" ? String() : a[1];
+            String err;
+            if (!applySetting(EspBaseKeys::BootApp, id, err)) {
+              out.println(err);
+            } else if (id.isEmpty()) {
+              out.println("boot app cleared");
+            } else {
+              out.printf("boot app set to %s\r\n", id.c_str());
+            }
           }
         } else if (a.is(0, "key") && a.has(1)) {
           uint8_t code = 0;
@@ -140,6 +142,22 @@ void AppManager::attach(EspBase& base) {
     }
     request->send(ok ? 200 : 409, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"rejected, see the log\"}");
   }).setMaxContentLength(1024);
+}
+
+bool AppManager::applySetting(const char* key, const String& value, String& err) {
+  if (_base == nullptr || key == nullptr || strcmp(key, EspBaseKeys::BootApp) != 0) {
+    err = "not an app setting";
+    return false;
+  }
+  if (!value.isEmpty() && AppRegistry::find(value.c_str()) == nullptr) {
+    err = "unknown app";
+    return false;
+  }
+  const bool ok = value.isEmpty() ? _base->config().remove(key) : _base->config().setString(key, value);
+  if (!ok) {
+    err = "write failed";
+  }
+  return ok;
 }
 
 bool AppManager::start(Frame* frame, PresentFn present, const char* homeId) {

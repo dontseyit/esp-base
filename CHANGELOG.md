@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-11-26
+
+### Changed
+
+- A console password (`webPassword` or `web_pass`) outside 8..63 characters logs a warning at boot. It is still used.
+- `config set log_lvl` answers `log_lvl saved`, like every other key, and `log level` with a bad level answers `log_lvl must be one of e w i d`.
+- For code that used them: `EspBaseKeys::All[]` and `EspBaseKeys::isSecret()` are gone. `EspBaseKeys::Defs[]` lists every library key with its type, and `EspBaseKeys::find()` looks one up.
+
+### Fixed
+
+- `config set boot_app <id>` was refused with "not a wifi setting". It now takes a registered app's id, and `""` clears it.
+
+- `POST /api/settings` refused a save of many long settings at once: bodies were capped at 4 KB, and a project's 24 settings at 255 bytes need about 6.6 KB. The cap is now 8 KB.
+- `tools/build_web.py` failed with a `TypeError` on Python 3.9, the `python3` that ships with macOS.
+- `WifiManager::staSsid()`, and with it `wifi.ssid` in `/api/info` and `/api/wifi`, read the network list while the loop task rewrote it, and could return a garbled name. It now reads the attempt's network from `ConfigStore`. Until the first connection attempt it is empty instead of naming the first stored network, so it stays empty on a device that boots in mode `ap`.
+
 ## [1.4.0] - 2026-11-26
 
 ### Added

@@ -8,7 +8,7 @@ The web interface has no TLS, so treat it as a LAN service. Inside that limit, e
 - The WebSocket takes a single-use ticket from the authenticated API instead of HTTP credentials.
 - Requests to `/api/`, `/ws` and `/update` whose `Origin` names another site get 403. A web page the user happens to visit therefore cannot drive the device (cross-site request forgery and WebSocket hijacking). Without a password the `Host` header must also be an IP address, `<hostname>` or `<hostname>.local`, which stops DNS rebinding. With a password set, any host name works.
 - The page is served with a hash-based Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The UI writes text with `textContent` only.
-- JSON request bodies are capped at 1 KB (4 KB for `POST /api/settings`) and incoming WebSocket messages at 512 bytes.
+- JSON request bodies are capped at 1 KB (8 KB for `POST /api/settings`) and incoming WebSocket messages at 512 bytes.
 - Passwords are never logged or returned. `config` masks every `*_pass` key, only command names reach the log, and the browser keeps password-carrying commands out of its stored history. A project's `Secret` settings are treated the same way: the page, the API and the console tell only whether one is set, and `config set` of one is kept out of the stored history. Control characters in log lines are replaced, and invalid UTF-8 is replaced before it reaches a WebSocket.
 - The device logs a warning at boot while the console or OTA has no password.
 

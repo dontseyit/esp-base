@@ -48,7 +48,7 @@ const char* ssidError(const String& ssid) {
 }
 
 const char* passError(const String& pass) {
-  return (!pass.isEmpty() && (pass.length() < 8 || pass.length() > 63)) ? "password must be empty or 8..63 chars" : nullptr;
+  return EspBaseKeys::validPassword(pass) ? nullptr : "password must be empty or 8..63 chars";
 }
 
 bool validCredentials(const String& ssid, const String& pass) {
@@ -388,6 +388,7 @@ void WifiManager::staConnect() {
     _candIdx = 0;
   }
   const Candidate& c = _cands[_candIdx];
+  _attemptSlot = c.slot;
   _staAttemptActive = true;
   _attemptStart = millis();
   LOG_I("wifi: connecting to \"%s\" (slot %u, %u of %u)", c.ssid, c.slot, static_cast<unsigned>(_roundTried + 1), static_cast<unsigned>(_candCount));
@@ -1072,14 +1073,14 @@ String WifiManager::scanResultJson() {
 
 // ---- Getters / status --------------------------------------------------------
 
+// The name comes from ConfigStore, under its lock, not from _cands: the loop
+// task rewrites _cands in loadCredentials() while the web server's task asks.
 String WifiManager::staSsid() const {
   if (isConnected()) {
     return WiFi.SSID();
   }
-  if (_candCount > 0 && _candIdx < _candCount) {
-    return String(_cands[_candIdx].ssid);
-  }
-  return String();
+  const uint8_t slot = _attemptSlot;
+  return (slot != 0 && _store != nullptr) ? _store->getString(SlotKeys(slot).ssid) : String();
 }
 
 IPAddress WifiManager::localIP() const {

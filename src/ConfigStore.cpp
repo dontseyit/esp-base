@@ -17,19 +17,43 @@ const char* slotKey(uint8_t slot, const char* field, char* buf, size_t len) {
 }
 }  // namespace
 
-const char* const All[] = {StaSsid,   StaPass,   "sta2_ssid", "sta2_pass", "sta3_ssid",  "sta3_pass",   "sta4_ssid", "sta4_pass", "sta5_ssid",
-                           "sta5_pass", Hostname, ApPass,      WebPass,     LogLevelKey, WifiModeKey, StaTimeout, ReconnTimeout, ApRetry,
+// Every slot up to kMaxStaSlots is spelled out (test/test_config_keys checks it).
+const Def Defs[] = {
+    {StaSsid, Type::Text, Owner::Wifi},
+    {StaPass, Type::Secret, Owner::Wifi},
+    {"sta2_ssid", Type::Text, Owner::Wifi},
+    {"sta2_pass", Type::Secret, Owner::Wifi},
+    {"sta3_ssid", Type::Text, Owner::Wifi},
+    {"sta3_pass", Type::Secret, Owner::Wifi},
+    {"sta4_ssid", Type::Text, Owner::Wifi},
+    {"sta4_pass", Type::Secret, Owner::Wifi},
+    {"sta5_ssid", Type::Text, Owner::Wifi},
+    {"sta5_pass", Type::Secret, Owner::Wifi},
+    {Hostname, Type::Text, Owner::Base, true},
+    {ApPass, Type::Secret, Owner::Base, true},
+    {WebPass, Type::Secret, Owner::Base, true},
+    {LogLevelKey, Type::Level, Owner::Base},
+    {WifiModeKey, Type::Text, Owner::Wifi},
+    {StaTimeout, Type::Ms, Owner::Wifi},
+    {ReconnTimeout, Type::Ms, Owner::Wifi},
+    {ApRetry, Type::Ms, Owner::Wifi},
 #ifndef ESPBASE_NO_APPS
-                           BootApp,
+    {BootApp, Type::Text, Owner::Apps, true},
 #endif
-                           nullptr};
+    {nullptr, Type::Text, Owner::Base},
+};
 
-bool isSecret(const char* key) {
-  if (key == nullptr) {
-    return false;
+const Def* find(const char* key) {
+  for (const Def* d = Defs; key != nullptr && d->key != nullptr; ++d) {
+    if (strcmp(key, d->key) == 0) {
+      return d;
+    }
   }
-  const size_t n = strlen(key);
-  return n >= 5 && strcmp(key + n - 5, "_pass") == 0;
+  return nullptr;
+}
+
+bool validPassword(const String& value) {
+  return value.isEmpty() || (value.length() >= 8 && value.length() <= 63);
 }
 
 const char* slotSsidKey(uint8_t slot, char* buf, size_t len) {

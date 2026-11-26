@@ -5,15 +5,6 @@
 #include "Log.h"
 
 namespace {
-bool libraryKey(const char* key) {
-  for (const char* const* k = EspBaseKeys::All; *k != nullptr; ++k) {
-    if (strcmp(key, *k) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
 const char* errorOf(const SettingDef& d, const char* value) {
   return SettingsCheck::valueError(d.kind, d.choices, d.maxLen, value, d.min, d.max, d.decimals);
 }
@@ -37,7 +28,7 @@ bool ProjectSettings::add(const SettingDef& def) {
     why = "label, def, choices and hint must not be null";
   } else if (!SettingsCheck::validKey(d.key)) {
     why = "the key must be 1..15 of a-z, 0-9 and '_'";
-  } else if (libraryKey(d.key)) {
+  } else if (EspBaseKeys::find(d.key) != nullptr) {
     why = "the key is one of the library's own";
   } else if (find(d.key) != nullptr) {
     why = "the key is already defined";

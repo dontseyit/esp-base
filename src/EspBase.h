@@ -56,7 +56,8 @@ class EspBase {
   void registerBuiltins();
   void wifiCommand(const CmdArgs& a, Print& out);
   void configCommand(const CmdArgs& a, Print& out);
-  void showConfigKey(const char* key, bool skipUnset, Print& out);
+  void showConfigKey(const EspBaseKeys::Def& def, bool skipUnset, Print& out);
+  bool setConfig(const EspBaseKeys::Def& def, const String& value, String& err);
   void showSetting(const SettingDef& def, Print& out);
   void updateStatusLed();
 
