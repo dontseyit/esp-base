@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format follows
 
 - `POST /api/settings` refused a save of many long settings at once: bodies were capped at 4 KB, and a project's 24 settings at 255 bytes need about 6.6 KB. The cap is now 8 KB.
 - `tools/build_web.py` failed with a `TypeError` on Python 3.9, the `python3` that ships with macOS.
+- `WifiManager::staSsid()`, and with it `wifi.ssid` in `/api/info` and `/api/wifi`, read the network list while the loop task rewrote it, and could return a garbled name. It now reads the attempt's network from `ConfigStore`. Until the first connection attempt it is empty instead of naming the first stored network, so it stays empty on a device that boots in mode `ap`.
 
 ## [1.4.0] - 2026-11-26
 

@@ -64,9 +64,10 @@ class WifiManager {
   bool hasCredentials() const { return _candCount > 0; }
   bool mdnsRunning() const { return _mdnsStarted; }
 
-  // Safe to call from any task: copies of fixed buffers or driver queries.
+  // Any task: fixed buffers (apSsid() is finished once, below), driver
+  // queries, and staSsid() reads the attempt's network from ConfigStore.
   String hostname() const { return String(_hostname); }
-  String staSsid() const;  // connected SSID, else the network being tried
+  String staSsid() const;  // connected SSID, else the network being tried (or tried last)
   // "<prefix>-XXXX". Complete after begin() on a chip with WiFi of its own.
   // Where WiFi is a second chip (ChipInfo::hasOwnWifi() is false) it is the
   // prefix alone until the first loop(): the address is only there once the
@@ -193,6 +194,7 @@ class WifiManager {
   bool _connectCallFailed = false;
   uint32_t _backoffMs = 0;
   volatile bool _staAttemptActive = false;  // read by startScan() from other tasks
+  volatile uint8_t _attemptSlot = 0;        // slot of the attempt in flight or the last one; read by staSsid() from other tasks
   uint32_t _attemptStart = 0;
   uint32_t _nextRoundAt = 0;
   bool _apActive = false;

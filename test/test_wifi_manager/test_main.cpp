@@ -104,11 +104,13 @@ static void test_a_round_tries_each_network_then_opens_the_ap() {
   storeNet(2, "office");
   WifiManager wm;
   boot(wm);
+  TEST_ASSERT_EQUAL_STRING("home", wm.staSsid().c_str());  // the network being tried
   run(wm, 5000);  // home does not answer
   TEST_ASSERT_EQUAL(1, WiFi.disconnects);
   ASSERT_TRIED("home");
   event(wm, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);  // that disconnect is done: the next network at once
   ASSERT_TRIED("home,office");
+  TEST_ASSERT_EQUAL_STRING("office", wm.staSsid().c_str());
   event(wm, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);  // office refuses
   ASSERT_STATE("ap_fallback", wm);
   TEST_ASSERT_EQUAL_STRING("EspBase-2B90", WiFi.apSsid.c_str());
