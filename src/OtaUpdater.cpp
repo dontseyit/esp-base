@@ -7,8 +7,11 @@
 #include <Update.h>
 
 #include "Log.h"
+#ifndef ESPBASE_NO_WEB
 #include "WebConsole.h"
+#endif
 
+namespace espbase {
 namespace {
 constexpr uint16_t kOtaPort = 3232;
 constexpr uint32_t kRebootDelayMs = 1000;
@@ -25,8 +28,7 @@ const char* otaErrorName(ota_error_t err) {
 }
 }  // namespace
 
-void OtaUpdater::begin(const EspBaseConfig& cfg, WebConsole& console, const String& hostname) {
-  _console = &console;
+void OtaUpdater::begin(const EspBaseConfig& cfg, const String& hostname) {
   _password = cfg.otaPassword;
   _enabled = cfg.otaEnabled;
   if (!_enabled) {
@@ -65,15 +67,9 @@ void OtaUpdater::begin(const EspBaseConfig& cfg, WebConsole& console, const Stri
     LOG_E("ota: espota error %d (%s)", static_cast<int>(err), otaErrorName(err));
   });
 
-  console.server().on(
-      "/update", HTTP_POST, [this](AsyncWebServerRequest* request) { handleUploadDone(request); },
-      [this](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
-        handleUploadChunk(request, filename, index, data, len, final);
-      });
-
-  LOG_I("ota: enabled (espota port %u, POST /update)", kOtaPort);
+  LOG_I("ota: enabled (espota port %u)", kOtaPort);
   if (_password.isEmpty()) {
-    LOG_W("ota: no password, anyone on the network can flash firmware (espota%s)", console.authRequired() ? "" : " and POST /update");
+    LOG_W("ota: no password, anyone on the network can flash firmware over espota");
   }
 }
 
@@ -107,14 +103,32 @@ void OtaUpdater::loop() {
   }
 }
 
+#ifndef ESPBASE_NO_WEB
+
+void OtaUpdater::serveUploads(WebConsole& web) {
+  if (!_enabled) {
+    return;
+  }
+  _web = &web;
+  web.server().on(
+      "/update", HTTP_POST, [this](AsyncWebServerRequest* request) { handleUploadDone(request); },
+      [this](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+        handleUploadChunk(request, filename, index, data, len, final);
+      });
+  LOG_I("ota: POST /update enabled");
+  if (_password.isEmpty() && !web.authRequired()) {
+    LOG_W("ota: no password, anyone on the network can flash firmware with POST /update");
+  }
+}
+
 // Same origin rules as the console. With a console password that password
 // protects uploads; otherwise the OTA password does (HTTP basic auth).
 bool OtaUpdater::authorized(AsyncWebServerRequest* request) {
-  if (!_console->trustedOrigin(request)) {
+  if (!_web->trustedOrigin(request)) {
     return false;
   }
-  if (_console->authRequired()) {
-    return _console->authenticated(request);
+  if (_web->authRequired()) {
+    return _web->authenticated(request);
   }
   return _password.isEmpty() || request->authenticate(WebConsole::kUser, _password.c_str(), WebConsole::kRealm);
 }
@@ -208,5 +222,9 @@ void OtaUpdater::handleUploadDone(AsyncWebServerRequest* request) {
   body += "\"}";
   request->send(500, "application/json", body);
 }
+
+#endif  // ESPBASE_NO_WEB
+
+}  // namespace espbase
 
 #endif  // ESPBASE_NO_OTA

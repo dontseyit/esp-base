@@ -1,12 +1,15 @@
+#ifndef ESPBASE_NO_APPS
+
 #include "AppManager.h"
 
-#include <AsyncJson.h>
 #include <string.h>
 
-#include <algorithm>
-
 #include "EspBase.h"
+#ifndef ESPBASE_NO_WEB
+#include <AsyncJson.h>
+#endif
 
+namespace espbase {
 namespace {
 constexpr uint32_t kOverrunLogIntervalMs = 10000;
 constexpr size_t kInputQueue = 16;
@@ -73,8 +76,6 @@ void AppManager::attach(EspBase& base) {
           printList(out);
         } else if (a.is(0, "stack")) {
           printStack(out);
-        } else if (a.is(0, "stats")) {
-          printStats(out);
         } else if (a.is(0, "open") && a.has(1)) {
           out.println(push(a[1].c_str(), joinFrom(a, 2)) ? "opening" : "rejected (see log)");
         } else if (a.is(0, "replace") && a.has(1)) {
@@ -85,13 +86,13 @@ void AppManager::attach(EspBase& base) {
           out.println(popToRoot() ? "closing to root" : "already at root");
         } else if (a.is(0, "boot")) {
           if (!a.has(1)) {
-            const String id = _base->config().getString(EspBaseKeys::BootApp);
+            const String id = _base->config().getString(Keys::BootApp);
             out.printf("boot app: %s\r\n", id.isEmpty() ? "(none, home is used)" : id.c_str());
           } else if (a[1] == "-") {
-            _base->config().remove(EspBaseKeys::BootApp);
+            _base->config().remove(Keys::BootApp);
             out.println("boot app cleared");
           } else if (AppRegistry::find(a[1].c_str()) != nullptr) {
-            _base->config().setString(EspBaseKeys::BootApp, a[1]);
+            _base->config().setString(Keys::BootApp, a[1]);
             out.printf("boot app set to %s\r\n", a[1].c_str());
           } else {
             out.println("unknown app");
@@ -104,40 +105,19 @@ void AppManager::attach(EspBase& base) {
             out.println("usage: app key back|select|up|down|left|right|<code> [value]");
           }
         } else {
-          out.println("usage: app list|stack|stats|open <id> [args]|replace <id> [args]|close [result]|home|boot [id|-]|key <name|code> [value]");
+          out.println("usage: app list|stack|open <id> [args]|replace <id> [args]|close [result]|home|boot [id|-]|key <name|code> [value]");
         }
       },
-      "app list|stack|stats|open|replace|close|home|boot|key");
+      "app list|stack|open|replace|close|home|boot|key");
 
+#ifndef ESPBASE_NO_WEB
   base.web().on("/api/apps", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
     writeJson(response->getRoot().to<JsonObject>());
     response->setLength();
     request->send(response);
   });
-
-  // {"action":"open|replace|close|home|key","id","args","result","code","value"}
-  base.web().on("/api/apps", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
-    const String action = json["action"] | "";
-    const char* id = json["id"] | "";
-    const String args = json["args"] | "";
-    bool ok = false;
-    if (action == "open") {
-      ok = push(id, args);
-    } else if (action == "replace") {
-      ok = replace(id, args);
-    } else if (action == "close") {
-      ok = pop(json["result"] | 0);
-    } else if (action == "home") {
-      ok = popToRoot();
-    } else if (action == "key") {
-      ok = key(json["code"] | 0, json["value"] | 0);
-    } else {
-      request->send(400, "application/json", "{\"ok\":false,\"error\":\"action must be open, replace, close, home or key\"}");
-      return;
-    }
-    request->send(ok ? 200 : 409, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"rejected, see the log\"}");
-  }).setMaxContentLength(1024);
+#endif
 }
 
 bool AppManager::start(Frame* frame, PresentFn present, const char* homeId) {
@@ -173,7 +153,6 @@ bool AppManager::start(Frame* frame, PresentFn present, const char* homeId) {
 
   App* rootApp = chooseRoot(homeId);
   _started = true;
-  _loopWindowStart = millis();
   _lastInputAt = millis();
   if (rootApp == nullptr) {
     LOG_W("apps: %u app(s) registered, none visible", static_cast<unsigned>(n));
@@ -186,7 +165,7 @@ bool AppManager::start(Frame* frame, PresentFn present, const char* homeId) {
 
 // The persisted boot_app if it is a visible app, else homeId, else the first visible app.
 App* AppManager::chooseRoot(const char* homeId) const {
-  const String boot = _base->config().getString(EspBaseKeys::BootApp);
+  const String boot = _base->config().getString(Keys::BootApp);
   if (!boot.isEmpty()) {
     App* app = AppRegistry::find(boot.c_str());
     if (app != nullptr && !app->hasFlag(AppHidden)) {
@@ -345,7 +324,7 @@ void AppManager::apply(Transition& t) {
       closeTop();
       openOnStack(*t.app, t.args);
       if (rootReplaced) {
-        _base->config().setString(EspBaseKeys::BootApp, t.app->id());
+        _base->config().setString(Keys::BootApp, t.app->id());
       }
       break;
     }
@@ -357,8 +336,7 @@ void AppManager::apply(Transition& t) {
       root()->_dirty = true;
       root()->resume(0);
       break;
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -413,12 +391,6 @@ void AppManager::loop() {
     return;
   }
   const uint32_t now = millis();
-  _loopCount++;
-  if (now - _loopWindowStart >= 1000) {
-    _loopHz = _loopCount;
-    _loopCount = 0;
-    _loopWindowStart = now;
-  }
 
   InputEvent ev;
   while (_inputs != nullptr && xQueueReceive(_inputs, &ev, 0) == pdTRUE) {
@@ -463,16 +435,11 @@ void AppManager::runTicks(uint32_t now) {
     const uint32_t t0 = micros();
     a->tick(dt);
     const uint32_t us = micros() - t0;
-    a->_stats.ticks++;
-    a->_stats.tickLastUs = us;
-    a->_stats.tickMaxUs = std::max(a->_stats.tickMaxUs, us);
-    if (us > _tickBudgetUs) {
-      a->_stats.overruns++;
-      if (now - a->_lastOverrunLogAt >= kOverrunLogIntervalMs) {
-        a->_lastOverrunLogAt = now;
-        LOG_W("apps: %s tick took %lu us (budget %lu us, %lu overruns)", a->id(), static_cast<unsigned long>(us),
-              static_cast<unsigned long>(_tickBudgetUs), static_cast<unsigned long>(a->_stats.overruns));
-      }
+    // The scheduler is cooperative: a slow tick delays WiFi and the console too.
+    if (us > kTickBudgetUs && now - a->_lastOverrunLogAt >= kOverrunLogIntervalMs) {
+      a->_lastOverrunLogAt = now;
+      LOG_W("apps: %s tick took %lu us (budget %lu us), split the work across ticks", a->id(), static_cast<unsigned long>(us),
+            static_cast<unsigned long>(kTickBudgetUs));
     }
   }
 }
@@ -502,20 +469,11 @@ void AppManager::runDraw(uint32_t now) {
     fg->_nextDrawAt = now + 1000 / hz;
   }
   for (size_t i = base; i < _depth; ++i) {
-    App* a = _stack[i];
-    const uint32_t t0 = micros();
-    a->draw(*_frame);
-    const uint32_t us = micros() - t0;
-    a->_dirty = false;
-    a->_stats.draws++;
-    a->_stats.drawLastUs = us;
-    a->_stats.drawMaxUs = std::max(a->_stats.drawMaxUs, us);
+    _stack[i]->draw(*_frame);
+    _stack[i]->_dirty = false;
   }
   if (_present) {
-    const uint32_t t0 = micros();
     _present(*_frame);
-    _presentLastUs = micros() - t0;
-    _presentMaxUs = std::max(_presentMaxUs, _presentLastUs);
   }
 }
 
@@ -555,30 +513,13 @@ void AppManager::printStack(Print& out) {
   }
 }
 
-void AppManager::printStats(Print& out) {
-  out.printf("loop: %lu iterations/s, present last %lu us, max %lu us\r\n", static_cast<unsigned long>(_loopHz),
-             static_cast<unsigned long>(_presentLastUs), static_cast<unsigned long>(_presentMaxUs));
-  for (const App* a = AppRegistry::first(); a != nullptr; a = AppRegistry::next(*a)) {
-    const App::Stats& s = a->stats();
-    out.printf("  %-12s ticks %lu (last %lu us, max %lu us, %lu overruns)  draws %lu (last %lu us, max %lu us)\r\n", a->id(),
-               static_cast<unsigned long>(s.ticks), static_cast<unsigned long>(s.tickLastUs), static_cast<unsigned long>(s.tickMaxUs),
-               static_cast<unsigned long>(s.overruns), static_cast<unsigned long>(s.draws), static_cast<unsigned long>(s.drawLastUs),
-               static_cast<unsigned long>(s.drawMaxUs));
-  }
-}
-
 void AppManager::writeJson(JsonObject o) {
   o["started"] = _started;
-  o["loopHz"] = _loopHz;
-  o["tickBudgetUs"] = _tickBudgetUs;
   const App* fg = foreground();
   o["foreground"] = fg != nullptr ? fg->id() : "";
   JsonArray stack = o["stack"].to<JsonArray>();
-  const size_t depth = std::min(_depth, kMaxDepth);
-  for (size_t i = 0; i < depth; ++i) {
-    if (_stack[i] != nullptr) {
-      stack.add(_stack[i]->id());
-    }
+  for (size_t i = 0; i < _depth; ++i) {
+    stack.add(_stack[i]->id());
   }
   JsonArray apps = o["apps"].to<JsonArray>();
   for (const App* a = AppRegistry::first(); a != nullptr; a = AppRegistry::next(*a)) {
@@ -590,12 +531,9 @@ void AppManager::writeJson(JsonObject o) {
     e["drawHz"] = a->info().drawHz;
     e["flags"] = a->info().flags;
     e["state"] = stateOf(*a, fg);
-    const App::Stats& s = a->stats();
-    JsonObject st = e["stats"].to<JsonObject>();
-    st["ticks"] = s.ticks;
-    st["draws"] = s.draws;
-    st["overruns"] = s.overruns;
-    st["tickMaxUs"] = s.tickMaxUs;
-    st["drawMaxUs"] = s.drawMaxUs;
   }
 }
+
+}  // namespace espbase
+
+#endif  // ESPBASE_NO_APPS

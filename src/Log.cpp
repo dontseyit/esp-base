@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+namespace espbase {
+
 LogClass Log;
 
 LogClass::LogClass() : _mutex(xSemaphoreCreateMutex()) {}
@@ -73,11 +75,16 @@ bool LogClass::parseLevel(const char* text, LogLevel& out) {
     return false;
   }
   switch (tolower(static_cast<unsigned char>(text[0]))) {
-    case 'e': case '1': out = LogLevel::Error; return true;
-    case 'w': case '2': out = LogLevel::Warn; return true;
-    case 'i': case '3': out = LogLevel::Info; return true;
-    case 'd': case '4': out = LogLevel::Debug; return true;
-    case 'n': case '0': out = LogLevel::None; return true;
+    case 'e':
+    case '1': out = LogLevel::Error; return true;
+    case 'w':
+    case '2': out = LogLevel::Warn; return true;
+    case 'i':
+    case '3': out = LogLevel::Info; return true;
+    case 'd':
+    case '4': out = LogLevel::Debug; return true;
+    case 'n':
+    case '0': out = LogLevel::None; return true;
     default: return false;
   }
 }
@@ -171,7 +178,6 @@ void LogClass::dropOldest() {
   _tail = (_tail + rec) % _cap;
   _used -= rec;
   _seqTail++;
-  _overwritten++;
 }
 
 void LogClass::putBytes(const void* src, size_t n) {
@@ -219,34 +225,6 @@ LogClass::Cursor LogClass::head() {
   return c;
 }
 
-uint32_t LogClass::sequence() {
-  uint32_t s = 0;
-  if (lock()) {
-    s = _seqHead;
-    unlock();
-  }
-  return s;
-}
-
-uint32_t LogClass::overwritten() {
-  uint32_t s = 0;
-  if (lock()) {
-    s = _overwritten;
-    unlock();
-  }
-  return s;
-}
-
-size_t LogClass::pending(const Cursor& c) {
-  size_t n = 0;
-  if (lock()) {
-    const uint32_t seq = (c.seq < _seqTail) ? _seqTail : c.seq;
-    n = (seq < _seqHead) ? (_seqHead - seq) : 0;
-    unlock();
-  }
-  return n;
-}
-
 bool LogClass::read(Cursor& c, Record& out, uint32_t* dropped) {
   if (dropped != nullptr) {
     *dropped = 0;
@@ -291,3 +269,5 @@ void LogClass::dump(Print& out) {
     out.printf("[%8lu][%c] %s\r\n", static_cast<unsigned long>(r.ms), levelChar(r.level), r.msg);
   }
 }
+
+}  // namespace espbase

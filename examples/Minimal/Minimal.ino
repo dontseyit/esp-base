@@ -1,12 +1,15 @@
-// Minimal EspBase consumer. Builds for every env in platformio.ini.
+// EspBase with the app framework: a text Frame, example apps (apps.cpp), a
+// project command and a project route. Builds for every env in platformio.ini
+// and opens in the Arduino IDE.
 //
 // Serial: the project owns Serial (and any USB CDC flags); the library only
-// logs through cfg.logOutput. Commands typed on Serial are passed to the same
-// registry the web console uses.
-#include <Arduino.h>
+// logs through cfg.logOutput. Commands typed on Serial go to the same registry
+// the web console uses.
 #include <EspBase.h>
 
 #include "Frame.h"
+
+using namespace espbase;
 
 // The project supplies pins. Pass -DLED_PIN=<gpio> in build_flags to use one.
 #ifndef LED_PIN
@@ -40,22 +43,6 @@ static void ledCommand(const CmdArgs& args, Print& out) {
   }
 }
 
-// Reads command lines from Serial without blocking.
-static void pollSerialCommands() {
-  static String line;
-  while (Serial.available() > 0) {
-    const char c = static_cast<char>(Serial.read());
-    if (c == '\n' || c == '\r') {
-      if (!line.isEmpty()) {
-        base.console().execute(line, Serial);
-        line = "";
-      }
-    } else if (line.length() < 200) {
-      line += c;
-    }
-  }
-}
-
 void setup() {
   Serial.begin(115200);
 #if ARDUINO_USB_CDC_ON_BOOT
@@ -64,15 +51,13 @@ void setup() {
   Serial.setTxTimeoutMs(0);
 #endif
 
-  cfg.hostname = "esp-base-demo";   // also the mDNS name: esp-base-demo.local
-  cfg.apSsidPrefix = "EspBase";     // AP SSID = EspBase-XXXX (last 4 hex of the MAC)
-  cfg.apPassword = "";              // empty = open AP
-  cfg.staTimeoutMs = 20000;         // STA attempt before AP fallback
-  cfg.statusLedPin = LED_PIN;       // -1 = none
-  cfg.httpPort = 80;
-  cfg.otaEnabled = true;
-  cfg.otaPassword = "";             // set one before shipping
-  cfg.logOutput = &Serial;          // serial sink for LOG_x
+  cfg.hostname = "esp-base-demo";  // also the mDNS name: esp-base-demo.local
+  cfg.apSsidPrefix = "EspBase";    // AP SSID = EspBase-XXXX (last 4 hex of the MAC)
+  cfg.apPassword = "";             // empty = open AP
+  cfg.staTimeoutMs = 20000;        // STA attempt before AP fallback
+  cfg.statusLedPin = LED_PIN;      // -1 = none
+  cfg.otaPassword = "";            // set one before shipping
+  cfg.logOutput = &Serial;         // serial sink for LOG_x
 
   base.begin(cfg);
 
@@ -83,7 +68,8 @@ void setup() {
   });
 
   base.wifi().onConnected([]() { LOG_I("app: network up, http://%s.local/", base.wifi().hostname().c_str()); });
-  base.wifi().onApStarted([]() { LOG_I("app: join \"%s\" and open http://%s/", base.wifi().apSsid().c_str(), base.wifi().apIP().toString().c_str()); });
+  base.wifi().onApStarted(
+      []() { LOG_I("app: join \"%s\" and open http://%s/", base.wifi().apSsid().c_str(), base.wifi().apIP().toString().c_str()); });
 
   LOG_I("app: %s with %d core(s), ble=%d, usb-cdc=%d, heap %lu", ChipInfo::name(), ChipInfo::cores(), ChipInfo::hasBle(), ChipInfo::hasUsbCdc(),
         static_cast<unsigned long>(ESP.getFreeHeap()));
@@ -96,7 +82,7 @@ void setup() {
 
 void loop() {
   base.loop();
-  pollSerialCommands();
+  base.console().poll(Serial);  // commands typed on the serial port
 
   static uint32_t lastTick = 0;
   if (millis() - lastTick >= 60000) {

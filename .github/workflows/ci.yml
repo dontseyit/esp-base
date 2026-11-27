@@ -13,7 +13,7 @@ permissions:
 # Third-party actions are pinned to commit SHAs; the comment names the tag.
 jobs:
   checks:
-    name: web asset guard and unit tests
+    name: web asset guard, version pins and unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -24,6 +24,8 @@ jobs:
           python-version: "3.12"
       - name: Generated header must match webui/
         run: python tools/build_web.py --check
+      - name: Version pins must agree
+        run: python tools/check_version.py
       - name: Install PlatformIO Core
         run: pip install platformio==6.1.19
       - name: Host unit tests
@@ -37,6 +39,13 @@ jobs:
       fail-fast: false
       matrix:
         env: [esp32, esp32s3, esp32c3, esp32c6, esp32s2]
+        example: [Minimal]
+        include:
+          # Module flags are built from the Blank sketch; Minimal needs the apps and OTA.
+          - env: esp32-lean
+            example: Blank
+          - env: esp32c3-noweb
+            example: Blank
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -53,7 +62,9 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
       - name: Install PlatformIO Core
         run: pip install platformio==6.1.19
-      - name: Build examples/minimal
+      - name: Build examples/${{ matrix.example }}
+        env:
+          PLATFORMIO_SRC_DIR: examples/${{ matrix.example }}
         run: pio run -e ${{ matrix.env }} 2>&1 | tee build.log
       - name: No warnings from this repository
         run: |
@@ -63,7 +74,8 @@ jobs:
       - name: Collect firmware
         run: |
           mkdir -p out
-          cp .pio/build/${{ matrix.env }}/firmware.bin out/esp-base-minimal-${{ matrix.env }}.bin
+          name=$(echo "${{ matrix.example }}" | tr '[:upper:]' '[:lower:]')
+          cp .pio/build/${{ matrix.env }}/firmware.bin out/esp-base-$name-${{ matrix.env }}.bin
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: firmware-${{ matrix.env }}

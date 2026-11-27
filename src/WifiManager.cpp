@@ -9,6 +9,7 @@
 
 #include "Log.h"
 
+namespace espbase {
 namespace {
 constexpr uint32_t kInitialRetryMs = 1000;
 constexpr uint32_t kDeferredConnectMs = 3000;  // fallback if no disconnect event follows disconnectAsync()
@@ -63,11 +64,11 @@ bool validCredentials(const String& ssid, const String& pass) {
 // NVS key names of one stored network slot.
 struct SlotKeys {
   explicit SlotKeys(uint8_t slot) {
-    EspBaseKeys::slotSsidKey(slot, ssid, sizeof(ssid));
-    EspBaseKeys::slotPassKey(slot, pass, sizeof(pass));
+    Keys::slotSsidKey(slot, ssid, sizeof(ssid));
+    Keys::slotPassKey(slot, pass, sizeof(pass));
   }
-  char ssid[ConfigStore::kMaxKeyLen + 1];
-  char pass[ConfigStore::kMaxKeyLen + 1];
+  char ssid[Keys::kMaxKeyLen + 1];
+  char pass[Keys::kMaxKeyLen + 1];
 };
 
 bool parseMs(const String& text, uint32_t& out) {
@@ -135,7 +136,7 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   }
 
   // Identity: persisted hostname wins over the config default.
-  String host = store.getString(EspBaseKeys::Hostname, cfg.hostname);
+  String host = store.getString(Keys::Hostname, cfg.hostname);
   if (host.isEmpty()) {
     host = "esp-base";
   }
@@ -145,7 +146,7 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
   snprintf(_apSsid, sizeof(_apSsid), "%.27s-%02X%02X", cfg.apSsidPrefix.c_str(), mac[4], mac[5]);
 
-  String apPass = store.getString(EspBaseKeys::ApPass, cfg.apPassword);
+  String apPass = store.getString(Keys::ApPass, cfg.apPassword);
   if (passError(apPass) != nullptr) {
     LOG_W("wifi: AP password must be 8..63 chars, using an open AP");
     apPass = "";
@@ -164,8 +165,8 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
   WiFi.setHostname(_hostname);   // must precede WiFi.mode()
   WiFi.onEvent([this](arduino_event_id_t id, arduino_event_info_t info) { queueEvent(id, info); });
 
-  LOG_I("wifi: hostname %s, mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s, mode %s, %u stored network(s)", _hostname, mac[0], mac[1], mac[2],
-        mac[3], mac[4], mac[5], _apSsid, modeName(_settings.mode), static_cast<unsigned>(_candCount));
+  LOG_I("wifi: hostname %s, mac %02x:%02x:%02x:%02x:%02x:%02x, ap ssid %s, mode %s, %u stored network(s)", _hostname, mac[0], mac[1], mac[2], mac[3],
+        mac[4], mac[5], _apSsid, modeName(_settings.mode), static_cast<unsigned>(_candCount));
   LOG_D("wifi: sta timeout %lu ms, reconnect timeout %lu ms, ap retry %lu ms", static_cast<unsigned long>(_settings.staTimeoutMs),
         static_cast<unsigned long>(_settings.reconnectTimeoutMs), static_cast<unsigned long>(_settings.apRetryIntervalMs));
   // The driver starts from the first loop() call (see startDriver()), which
@@ -176,7 +177,7 @@ void WifiManager::begin(const EspBaseConfig& cfg, ConfigStore& store) {
 void WifiManager::loadSettings() {
   const EspBaseConfig& c = *_cfg;
   WifiMode mode = c.wifiMode;
-  const String stored = _store->getString(EspBaseKeys::WifiModeKey);
+  const String stored = _store->getString(Keys::WifiModeKey);
   if (!stored.isEmpty() && !parseMode(stored.c_str(), mode)) {
     LOG_W("wifi: ignoring invalid wifi_mode \"%s\"", stored.c_str());
     mode = c.wifiMode;
@@ -186,9 +187,9 @@ void WifiManager::loadSettings() {
     return v < 0 ? 0U : static_cast<uint32_t>(v);
   };
   _settings.mode = mode;
-  _settings.staTimeoutMs = std::min(std::max(readMs(EspBaseKeys::StaTimeout, c.staTimeoutMs), kMinStaTimeoutMs), kMaxStaTimeoutMs);
-  _settings.reconnectTimeoutMs = std::min(readMs(EspBaseKeys::ReconnTimeout, c.reconnectTimeoutMs), kMaxReconnectTimeoutMs);
-  const uint32_t apRetry = readMs(EspBaseKeys::ApRetry, c.apRetryIntervalMs);
+  _settings.staTimeoutMs = std::min(std::max(readMs(Keys::StaTimeout, c.staTimeoutMs), kMinStaTimeoutMs), kMaxStaTimeoutMs);
+  _settings.reconnectTimeoutMs = std::min(readMs(Keys::ReconnTimeout, c.reconnectTimeoutMs), kMaxReconnectTimeoutMs);
+  const uint32_t apRetry = readMs(Keys::ApRetry, c.apRetryIntervalMs);
   _settings.apRetryIntervalMs = (apRetry == 0) ? 0 : std::min(std::max(apRetry, kMinApRetryMs), kMaxApRetryMs);
   _apPersistent = (mode != WifiMode::Sta);
 }
@@ -306,8 +307,7 @@ void WifiManager::enterState(WifiState s) {
       _roundActive = false;
       _staAttemptActive = false;
       break;
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -461,8 +461,7 @@ void WifiManager::attemptFailed(const char* why) {
         }
       }
       break;
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -532,9 +531,7 @@ void WifiManager::handleEvent(const Event& e) {
 
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: {
-      const char* why = (id == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
-                            ? WiFi.disconnectReasonName(static_cast<wifi_err_reason_t>(e.reason))
-                            : "lost ip";
+      const char* why = (id == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) ? WiFi.disconnectReasonName(static_cast<wifi_err_reason_t>(e.reason)) : "lost ip";
       if (_awaitingDisconnect) {
         // Our own disconnect completed: connect the next network right away.
         _awaitingDisconnect = false;
@@ -558,11 +555,8 @@ void WifiManager::handleEvent(const Event& e) {
           break;
         case WifiState::StaConnecting:
         case WifiState::StaReconnecting:
-        case WifiState::ApFallback:
-          attemptFailed(why);
-          break;
-        default:
-          break;
+        case WifiState::ApFallback: attemptFailed(why); break;
+        default: break;
       }
       break;
     }
@@ -587,16 +581,11 @@ void WifiManager::handleEvent(const Event& e) {
       _dns.stop();
       break;
 
-    case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
-      LOG_I("wifi: AP client joined (%u connected)", WiFi.softAPgetStationNum());
-      break;
+    case ARDUINO_EVENT_WIFI_AP_STACONNECTED: LOG_I("wifi: AP client joined (%u connected)", WiFi.softAPgetStationNum()); break;
 
-    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
-      LOG_I("wifi: AP client left (%u connected)", WiFi.softAPgetStationNum());
-      break;
+    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: LOG_I("wifi: AP client left (%u connected)", WiFi.softAPgetStationNum()); break;
 
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -720,9 +709,7 @@ void WifiManager::loop() {
   }
 
   switch (_state) {
-    case WifiState::StaConnecting:
-      serviceAttempt(now);
-      break;
+    case WifiState::StaConnecting: serviceAttempt(now); break;
 
     case WifiState::StaReconnecting:
       serviceAttempt(now);
@@ -747,8 +734,7 @@ void WifiManager::loop() {
       }
       break;
 
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -850,7 +836,7 @@ bool WifiManager::applySetting(const char* key, const String& value, String& err
   }
   uint8_t slot = 0;
   bool isPass = false;
-  if (EspBaseKeys::isSlotKey(key, slot, isPass)) {
+  if (Keys::isSlotKey(key, slot, isPass)) {
     const char* invalid = isPass ? passError(value) : ssidError(value);
     if (invalid != nullptr) {
       error = invalid;
@@ -863,7 +849,7 @@ bool WifiManager::applySetting(const char* key, const String& value, String& err
     _listChanged = true;
     return true;
   }
-  if (strcmp(key, EspBaseKeys::WifiModeKey) == 0) {
+  if (strcmp(key, Keys::WifiModeKey) == 0) {
     WifiMode mode;
     if (!parseMode(value.c_str(), mode)) {
       error = "wifi_mode must be sta, ap or apsta";
@@ -877,17 +863,17 @@ bool WifiManager::applySetting(const char* key, const String& value, String& err
     return true;
   }
   uint32_t ms = 0;
-  if (strcmp(key, EspBaseKeys::StaTimeout) == 0) {
+  if (strcmp(key, Keys::StaTimeout) == 0) {
     if (!parseMs(value, ms) || ms < kMinStaTimeoutMs || ms > kMaxStaTimeoutMs) {
       error = "sta_timeout must be 3000..300000 ms";
       return false;
     }
-  } else if (strcmp(key, EspBaseKeys::ReconnTimeout) == 0) {
+  } else if (strcmp(key, Keys::ReconnTimeout) == 0) {
     if (!parseMs(value, ms) || ms > kMaxReconnectTimeoutMs) {
       error = "reconn_timeout must be 0..3600000 ms (0 = AP immediately)";
       return false;
     }
-  } else if (strcmp(key, EspBaseKeys::ApRetry) == 0) {
+  } else if (strcmp(key, Keys::ApRetry) == 0) {
     if (!parseMs(value, ms) || (ms != 0 && (ms < kMinApRetryMs || ms > kMaxApRetryMs))) {
       error = "ap_retry must be 0 (never) or 5000..3600000 ms";
       return false;
@@ -966,7 +952,6 @@ void WifiManager::pollScan() {
   if (n == WIFI_SCAN_RUNNING) {
     return;
   }
-  _scanCompletedAt = millis();
   if (n < 0) {
     LOG_W("wifi: scan failed");
     endScan();
@@ -998,8 +983,7 @@ void WifiManager::pollScan() {
     net["ch"] = ch;
     net["enc"] = (auth != WIFI_AUTH_OPEN);
     if (_scanLog && k < kMaxScanLogged) {
-      LOG_I("  %4ld dBm ch%-2ld %-9s %s", static_cast<long>(rssi), static_cast<long>(ch), authName(auth),
-            ssid.isEmpty() ? "<hidden>" : ssid.c_str());
+      LOG_I("  %4ld dBm ch%-2ld %-9s %s", static_cast<long>(rssi), static_cast<long>(ch), authName(auth), ssid.isEmpty() ? "<hidden>" : ssid.c_str());
     }
   }
   String json;
@@ -1021,6 +1005,20 @@ String WifiManager::scanResultJson() {
 }
 
 // ---- Getters / status --------------------------------------------------------
+
+void WifiManager::writeJson(JsonObject o) {
+  o["mode"] = modeName(_settings.mode);
+  o["state"] = stateName();
+  o["ssid"] = staSsid();
+  o["ip"] = isConnected() ? localIP().toString() : String();
+  o["rssi"] = rssi();
+  if (_apActive) {
+    JsonObject ap = o["ap"].to<JsonObject>();
+    ap["ssid"] = apSsid();
+    ap["ip"] = apIP().toString();
+    ap["clients"] = apClients();
+  }
+}
 
 String WifiManager::staSsid() const {
   if (isConnected()) {
@@ -1101,3 +1099,5 @@ void WifiManager::printStatus(Print& out) {
   out.println("networks:");
   printNetworks(out);
 }
+
+}  // namespace espbase

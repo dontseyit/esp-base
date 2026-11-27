@@ -23,6 +23,7 @@ Each line looks like `[   12345][I] message`: milliseconds since boot, then the 
 - Lines logged before `base.begin()` are kept in the ring and reach the console later. They are not printed to Serial.
 - The Arduino core's own `log_x` messages bypass `Log` and go to the UART; their level is set with `CORE_DEBUG_LEVEL`.
 - USB CDC boards: call `Serial.setTxTimeoutMs(0)` after `Serial.begin()`. Otherwise writes wait for a USB host and stall `loop()`.
+- Timestamps are milliseconds since boot. Wall-clock time comes from NTP (`cfg.ntpServer`, `cfg.timezone`), is shown by the `time` command and in `/api/info`, and is available to your code through `time()` and `localtime_r()` once synced.
 
 ## ConfigStore
 
@@ -37,7 +38,9 @@ settings.setString("name", "kitchen");
 settings.has("name");  settings.remove("name");  settings.erase();
 ```
 
-Types: `String`, `int32_t`, `uint8_t`, `bool`. Keys are limited to 15 characters. `base.config()` is the library's own `espbase` namespace; keep your keys out of it. `factory-reset` erases only `espbase`.
+Types: `String`, `int32_t`, `uint8_t`. Keys are limited to 15 characters. `base.config()` is the library's own `espbase` namespace, whose key names are in `Keys.h`; keep your keys out of it. `factory-reset` erases only `espbase`.
+
+The key names are API: a stored value survives firmware updates, so a renamed key would lose settings on devices in the field. They only change in a major release, with a migration.
 
 ## Key reference
 
@@ -68,9 +71,11 @@ Namespace `espbase`. A stored key overrides the matching `EspBaseConfig` field.
 | `staTimeoutMs` | `20000` | Per network connect attempt. |
 | `reconnectTimeoutMs` | `60000` | Retries after a lost link before the AP; 0 = AP at once. |
 | `apRetryIntervalMs` | `60000` | Retry rounds in AP fallback; 0 = never. |
+| `ntpServer`, `timezone` | `"pool.ntp.org"`, `"UTC0"` | SNTP server, synced on every station connect; empty = no time sync. POSIX TZ string, e.g. `CET-1CEST,M3.5.0,M10.5.0/3`. |
 | `statusLedPin`, `statusLedActiveLow` | `-1`, `false` | Optional status LED. |
 | `httpPort` | `80` | Web console port. |
 | `maxWsClients` | `4` | Console clients before the oldest is dropped. |
+| `webUi` | `true` | Serve the built-in page at `/`. `false` keeps `/api` and `/ws` for a project with its own UI. |
 | `webPassword` | `""` | Console, API and upload password (user `admin`), 8 to 63 characters; empty = open. |
 | `otaEnabled`, `otaPassword` | `true`, `""` | OTA switch. The password protects espota, and `POST /update` while no `webPassword` is set. |
 | `logOutput`, `logBufferBytes`, `logLevel` | `nullptr`, `4096`, `Info` | Log sinks and default level. |

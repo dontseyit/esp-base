@@ -5,7 +5,7 @@
 //               v                     v
 //           AP_FALLBACK <---- STA_RECONNECTING (backoff 1, 2, 4 .. 30 s)
 //
-// Up to EspBaseKeys::kMaxStaSlots stored networks are tried in slot order
+// Up to Keys::kMaxStaSlots stored networks are tried in slot order
 // (a "round"); hidden networks work because no scan is involved. When a round
 // fails the AP comes up and rounds repeat every apRetryIntervalMs.
 // Modes: Sta (above), Ap (AP only, station never used), ApSta (AP always on).
@@ -17,6 +17,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <WiFi.h>
 
@@ -29,13 +30,16 @@
 
 #include "ConfigStore.h"
 #include "EspBaseConfig.h"
+#include "Keys.h"
+
+namespace espbase {
 
 enum class WifiState : uint8_t { Boot, StaConnecting, StaConnected, StaReconnecting, ApFallback, ApOnly, Off };
 
 class WifiManager {
  public:
   using Callback = std::function<void()>;
-  static constexpr uint8_t kMaxSlots = EspBaseKeys::kMaxStaSlots;
+  static constexpr uint8_t kMaxSlots = Keys::kMaxStaSlots;
 
   struct Settings {
     WifiMode mode = WifiMode::Sta;
@@ -72,7 +76,6 @@ class WifiManager {
   int8_t rssi() const;
   uint8_t apClients() const;
   String macAddress() const;
-  uint32_t reconnectCount() const { return _reconnects; }
 
   // ---- Stored networks (slot 1 = primary). Callable from any task; the
   // state machine picks the change up in loop().
@@ -96,7 +99,7 @@ class WifiManager {
   void setEnabled(bool on) { _wantEnabled = on; }
   bool enabled() const { return _state != WifiState::Off; }
 
-  // ---- Settings: validates, persists (key = EspBaseKeys::*) and applies from
+  // ---- Settings: validates, persists (key = Keys::*) and applies from
   // loop(). Handles wifi_mode, sta_timeout, reconn_timeout, ap_retry and the
   // slot keys. Returns false with a message in `error`.
   bool applySetting(const char* key, const String& value, String& error);
@@ -114,7 +117,6 @@ class WifiManager {
   bool startScan(uint32_t maxMsPerChannel = kScanMsPerChannel, bool logResults = true);
   bool scanRunning() const { return _scanPhase != ScanPhase::Idle; }
   String scanResultJson();  // [{"ssid":"x","rssi":-60,"ch":6,"enc":true}, ...] sorted by RSSI
-  uint32_t scanCompletedAt() const { return _scanCompletedAt; }
 
   void onConnected(Callback cb) { _onConnected.push_back(std::move(cb)); }
   void onDisconnected(Callback cb) { _onDisconnected.push_back(std::move(cb)); }
@@ -127,6 +129,8 @@ class WifiManager {
 
   void printStatus(Print& out);
   void printNetworks(Print& out);
+  // {"mode","state","ssid","ip","rssi","ap":{"ssid","ip","clients"}}; shared by GET /api/wifi and the device info.
+  void writeJson(JsonObject o);
 
  private:
   struct Event {
@@ -196,8 +200,8 @@ class WifiManager {
 
   Candidate _cands[kMaxSlots];
   size_t _candCount = 0;
-  size_t _candIdx = 0;      // network of the current/next attempt
-  size_t _roundTried = 0;   // attempts made in the current round
+  size_t _candIdx = 0;     // network of the current/next attempt
+  size_t _roundTried = 0;  // attempts made in the current round
   bool _roundActive = false;
   size_t _connectedIdx = 0;
 
@@ -213,7 +217,6 @@ class WifiManager {
 
   uint32_t _scanMsPerChannel = kScanMsPerChannel;
   bool _scanLog = true;
-  uint32_t _scanCompletedAt = 0;
   String _scanJson;
 
   char _hostname[33] = {0};
@@ -225,3 +228,5 @@ class WifiManager {
   std::vector<Callback> _onApStarted;
   std::vector<Callback> _onScanDone;
 };
+
+}  // namespace espbase

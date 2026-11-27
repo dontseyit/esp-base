@@ -8,6 +8,7 @@
 #include <string.h>
 #include <strings.h>
 
+namespace espbase {
 namespace WebGuard {
 
 // Length of the valid UTF-8 sequence that starts at p (2 to 4 bytes), or 0
@@ -83,3 +84,4 @@ inline bool originMatches(const char* origin, const char* host) {
 }
 
 }  // namespace WebGuard
+}  // namespace espbase

@@ -6,6 +6,7 @@
 #include <sdkconfig.h>
 #include <soc/soc_caps.h>
 
+namespace espbase {
 namespace ChipInfo {
 
 // Number of CPU cores (1 on ESP32-S2/C3/C6, 2 on ESP32/S3).
@@ -53,3 +54,4 @@ constexpr int appCore() {
 }
 
 }  // namespace ChipInfo
+}  // namespace espbase

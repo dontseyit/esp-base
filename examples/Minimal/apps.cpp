@@ -4,6 +4,8 @@
 
 #include "Frame.h"
 
+using namespace espbase;
+
 // ---- Hidden service: ticks at 1 Hz, never draws, never on the stack ----------
 
 class HeartbeatService : public App {
@@ -58,8 +60,11 @@ class ClockApp : public App {
     _base = &base;
     _heartbeat = static_cast<HeartbeatService*>(AppRegistry::find("heartbeat"));
     base.console().addCommand(
-        "clock", [this](const CmdArgs&, Print& out) { out.printf("uptime %lu s, heartbeat %lu\r\n", static_cast<unsigned long>(millis() / 1000),
-                                                                 static_cast<unsigned long>(_heartbeat ? _heartbeat->seconds : 0)); },
+        "clock",
+        [this](const CmdArgs&, Print& out) {
+          out.printf("uptime %lu s, heartbeat %lu\r\n", static_cast<unsigned long>(millis() / 1000),
+                     static_cast<unsigned long>(_heartbeat ? _heartbeat->seconds : 0));
+        },
         "clock app: show uptime");
   }
   void open(const String&) override { requestDraw(); }

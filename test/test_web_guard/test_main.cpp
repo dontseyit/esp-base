@@ -3,6 +3,8 @@
 
 #include "WebGuard.h"
 
+using namespace espbase;
+
 void setUp() {}
 void tearDown() {}
 
@@ -33,6 +35,7 @@ static void test_host() {
   TEST_ASSERT_FALSE(WebGuard::hostAllowed("evil.com", "dev"));
   TEST_ASSERT_FALSE(WebGuard::hostAllowed("dev.local.evil.com", "dev"));
   TEST_ASSERT_FALSE(WebGuard::hostAllowed("devx.local", "dev"));
+  TEST_ASSERT_FALSE(WebGuard::hostAllowed("dev.lan", "dev"));  // a router's domain: the page redirects to the IP instead
   TEST_ASSERT_FALSE(WebGuard::hostAllowed("1.2.3", "dev"));
   TEST_ASSERT_FALSE(WebGuard::hostAllowed("dev.local", ""));
 }

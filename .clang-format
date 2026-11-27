@@ -1,0 +1,11 @@
+# clang-format 15+. Run: clang-format -i src/*.h src/*.cpp examples/*/*.ino examples/*/*.cpp examples/*/*.h
+BasedOnStyle: Google
+ColumnLimit: 150
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive

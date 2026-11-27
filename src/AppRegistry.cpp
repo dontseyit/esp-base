@@ -1,6 +1,10 @@
+#ifndef ESPBASE_NO_APPS
+
 #include <string.h>
 
 #include "App.h"
+
+namespace espbase {
 
 // Function-local statics with constant initialisers are ready before any
 // dynamic initialisation runs, so REGISTER_APP can execute in any order.
@@ -82,3 +86,7 @@ App* AppRegistry::first() {
   sortIfNeeded();
   return head();
 }
+
+}  // namespace espbase
+
+#endif  // ESPBASE_NO_APPS

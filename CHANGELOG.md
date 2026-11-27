@@ -4,6 +4,51 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-11-27
+
+esp-base is a framework: it owns the boot sequence, the loop, the WiFi driver, the web server and the console. This release makes that explicit and
+makes every optional part optional. Existing projects need the migration steps below; the persisted keys are unchanged, so devices keep their settings.
+
+### Migration
+
+- Everything is in `namespace espbase`. Add `using namespace espbase;` after the includes, or qualify the names.
+- The project's drawing surface is `espbase::Frame` now: wrap its definition in `namespace espbase { struct Frame { ... }; }`.
+- `EspBaseKeys::` is `Keys::` (header `Keys.h`).
+- Commands live on `Console` (`base.console()`, API unchanged). The HTTP side is `base.webConsole()`; `base.web()` still returns the server.
+- `OtaUpdater::begin(cfg, hostname)` no longer takes the console; `EspBase` wires uploads itself.
+- Replace a serial command loop with `base.console().poll(Serial)`.
+- `CmdArgs::get()` and `raw()`, `ConfigStore::getBool/setBool`, `Log.pending/sequence/overwritten`, `WifiManager::reconnectCount/scanCompletedAt`,
+  `AppManager::setTickBudget/loopsPerSecond/stackAt/depth/frame/started/printStats`, `App::stats()`, `WebConsole::printInfo/writeInfo/ws()` are gone
+  (no callers). Device info is `EspBase::writeInfo(JsonObject)`; WiFi status is `WifiManager::writeJson(JsonObject)`.
+- `POST /api/apps` and the `app stats` command are gone; `GET /api/apps` no longer carries per-app stats. `GET /api/wifi/scan` has no `age` field.
+- The `info` command prints the same JSON as `GET /api/info`.
+
+### Added
+
+- Arduino IDE support: `library.properties`, `keywords.txt`, examples in sketch layout (`examples/Minimal`, `examples/Blank`).
+- `examples/Blank`: a project template with the `platformio.ini` a new board needs (platform pin, partitions, USB flags per chip) and a ten line sketch.
+- Compile-time module switches `ESPBASE_NO_WEB` and `ESPBASE_NO_APPS` next to `ESPBASE_NO_OTA`; CI builds the lean variants.
+- `cfg.webUi = false` serves `/api` and `/ws` without the built-in page, for projects with their own UI.
+- One-line compile error on Arduino core 2.x or a non-ESP32 target, instead of pages of template errors.
+- NTP time: `cfg.ntpServer` (default `pool.ntp.org`) and `cfg.timezone` (POSIX TZ, default `UTC0`), synced whenever the station connects; `time`
+  command; `time` field in the device info.
+- `Console::poll(Stream&)`: serial commands in one line.
+- Host unit tests for the command parser and registry, the log ring buffer, the persisted key helpers and the app registry (24 cases).
+- `tools/check_version.py` fails when the version pins disagree; CI runs it.
+- `.clang-format`, `.editorconfig`, `CONTRIBUTING.md`, `SECURITY.md`.
+
+### Changed
+
+- The login lockout is per client address instead of global: five failures lock that address out for 30 s, nobody else.
+- Without a console password, a page request with a Host the device does not accept (a router's own domain such as `device.lan`) is redirected to
+  the device's IP instead of loading a page whose API calls then fail with 403.
+- The app framework stays, as the optional layer for products with a UI. Its per-app timing statistics are gone; a tick over the fixed 20 ms budget is
+  still logged.
+
+### Fixed
+
+- `espota` and `POST /update` each warn separately when they run without a password, so the warning matches what is actually enabled.
+
 ## [1.2.0] - 2026-09-17
 
 ### Added

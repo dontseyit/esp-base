@@ -2,13 +2,17 @@
 
 [Home](Home.md) / Apps
 
-Apps are how you build a product on esp-base. Each app is a C++ object compiled into the firmware. `AppRegistry` collects the apps at static init time, and `AppManager` runs them from `base.loop()`: it ticks and draws each one at its declared rates, keeps a navigation stack, and applies transitions at the end of the loop iteration. The drawing surface (`Frame`) and the input source belong to your project.
+Apps are how you build a product with a UI on esp-base. They separate the fundamentals (network, settings, console) from the application: each app is a C++ object compiled into the firmware, `AppRegistry` collects the apps at static init time, and `AppManager` runs them from `base.loop()`: it ticks and draws each one at its declared rates, keeps a navigation stack, and applies transitions at the end of the loop iteration. The drawing surface (`espbase::Frame`) and the input source belong to your project.
+
+A single purpose device does not need any of this: write it in the sketch and never call `base.apps()`. `-DESPBASE_NO_APPS` removes the framework from the build.
 
 ## A minimal app
 
 ```cpp
 #include <EspBase.h>
-#include "Frame.h"   // your definition of struct Frame
+#include "Frame.h"   // your definition of espbase::Frame
+
+using namespace espbase;
 
 class ClockApp : public App {
  public:
@@ -109,7 +113,7 @@ sequenceDiagram
 
 ## Drawing
 
-- The project defines `struct Frame` in the global namespace: a sprite, a canvas, a character grid. The library only passes `Frame&` around.
+- The project defines `struct Frame` inside `namespace espbase`: a sprite, a canvas, a character grid, or a thin wrapper around your graphics library's canvas. The library only passes `Frame&` around and never looks inside.
 - The draw chain is the topmost opaque app plus every overlay above it. The whole chain redraws together, so an overlay never has to restore what is under it.
 - Nothing draws unless something called `requestDraw()`. A static screen costs nothing.
 - `present(frame)` runs once per redraw. Put the display transfer there.
@@ -138,22 +142,22 @@ void loop() {
 
 ## Timing
 
-The scheduler is cooperative: a slow tick delays everything, WiFi and the console included. A tick slower than the budget (`setTickBudget(us)`, default 20 ms) counts as an overrun and is logged at most every 10 s per app. `app stats` shows loop iterations per second, and per app the tick and draw counts with last and worst times. Split long work across ticks.
+The scheduler is cooperative: a slow tick delays everything, WiFi and the console included. A tick slower than 20 ms is logged as an overrun, at most every 10 s per app. Split long work across ticks.
 
 ## Pitfalls
 
 - An app missing from `app list` was dropped by the linker, which discards objects in a library archive that nothing references. Keep apps in the project's `src/`, or build the apps library with `lib_archive = false`.
 - A crash before `setup()` usually means an app constructor logged or used another global. Constructors run during static init, so move that code to `begin()`.
-- `REGISTER_APP` needs an unqualified type name. For a type in a namespace, write the two lines yourself: `static ns::MyApp myApp; static AppRegistrar myAppReg(myApp);`.
+- `REGISTER_APP` needs an unqualified type name. For a type in a namespace, write the two lines yourself: `static ns::MyApp myApp; static espbase::AppRegistrar myAppReg(myApp);`.
 - `base.apps().start()` must come after `base.begin()`.
 
 ## Console and API
 
-`app list|stack|stats|open <id> [args]|replace <id> [args]|close [result]|home|boot [id|-]|key <name|code> [value]`, plus `GET /api/apps` for the registry, stack and stats and `POST /api/apps` with `{"action":"open|replace|close|home|key", ...}`.
+`app list|stack|open <id> [args]|replace <id> [args]|close [result]|home|boot [id|-]|key <name|code> [value]`, plus `GET /api/apps` for the registry and the stack.
 
 ## The example
 
-[`examples/minimal/src`](../../examples/minimal/src/) has a 20x4 character `Frame` that is logged whenever it changes, and four apps: a launcher as root, a clock, an overlay confirm dialog and a hidden heartbeat service. With no hardware attached, drive it from the console:
+[`examples/Minimal`](../../examples/Minimal/) has a 20x4 character `Frame` that is logged whenever it changes, and four apps: a launcher as root, a clock, an overlay confirm dialog and a hidden heartbeat service. With no hardware attached, drive it from the console:
 
 ```
 app key select   # open the clock from the launcher

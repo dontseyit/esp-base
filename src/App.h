@@ -6,14 +6,19 @@
 // to be closed from inside its own callbacks.
 //
 // The Frame (drawing surface) and the input source belong to the project; the
-// library only passes references through.
+// library only passes references through. A project without a UI can ignore
+// apps entirely, or compile the framework out with -DESPBASE_NO_APPS.
 #pragma once
+
+#ifndef ESPBASE_NO_APPS
 
 #include <Arduino.h>
 
+namespace espbase {
+
 class EspBase;
 class AppManager;
-struct Frame;  // defined by the project, never dereferenced by the library
+struct Frame;  // defined by the project as espbase::Frame, never dereferenced by the library
 
 struct InputEvent {
   enum Type : uint8_t { None = 0, Press, Release, LongPress, Turn, Touch, Custom };
@@ -75,17 +80,6 @@ class App {
   bool isForeground() const;
   AppManager& manager() const { return *_mgr; }  // valid from begin() on
 
-  struct Stats {
-    uint32_t ticks = 0;
-    uint32_t draws = 0;
-    uint32_t overruns = 0;
-    uint32_t tickLastUs = 0;
-    uint32_t tickMaxUs = 0;
-    uint32_t drawLastUs = 0;
-    uint32_t drawMaxUs = 0;
-  };
-  const Stats& stats() const { return _stats; }
-
  private:
   friend class AppManager;
   friend class AppRegistry;
@@ -99,7 +93,6 @@ class App {
   uint32_t _lastTickAt = 0;
   uint32_t _nextDrawAt = 0;
   uint32_t _lastOverrunLogAt = 0;
-  Stats _stats;
 };
 
 // Intrusive registry: no heap, no dependency on static initialisation order.
@@ -123,9 +116,13 @@ class AppRegistrar {
   explicit AppRegistrar(App& app) { AppRegistry::add(app); }
 };
 
+}  // namespace espbase
+
 // REGISTER_APP(ClockApp);            -> static ClockApp instance, registered
 // REGISTER_APP(MenuApp, "main", 4);  -> constructor arguments
 // Works for types in the global namespace; otherwise write the two lines by hand.
-#define REGISTER_APP(Type, ...)                     \
-  static Type Type##_appInstance{__VA_ARGS__};      \
-  static AppRegistrar Type##_appRegistrar(Type##_appInstance)
+#define REGISTER_APP(Type, ...)                \
+  static Type Type##_appInstance{__VA_ARGS__}; \
+  static ::espbase::AppRegistrar Type##_appRegistrar(Type##_appInstance)
+
+#endif  // ESPBASE_NO_APPS

@@ -14,11 +14,13 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-enum class LogLevel : uint8_t { None = 0, Error = 1, Warn = 2, Info = 3, Debug = 4 };
-
 #ifndef ESPBASE_LOG_MAX_LEVEL
 #define ESPBASE_LOG_MAX_LEVEL 4
 #endif
+
+namespace espbase {
+
+enum class LogLevel : uint8_t { None = 0, Error = 1, Warn = 2, Info = 3, Debug = 4 };
 
 class LogClass {
  public:
@@ -44,7 +46,7 @@ class LogClass {
   // Allocates the ring buffer (re-allocates only if the size changes, so
   // messages logged before begin() survive) and sets the optional serial sink.
   // Safe to call more than once.
-  bool begin(size_t ringBytes = 4096, Print* output = nullptr);
+  bool begin(size_t ringBytes = kDefaultRing, Print* output = nullptr);
 
   void setOutput(Print* output);
   Print* output() const { return _out; }
@@ -69,14 +71,9 @@ class LogClass {
   // nothing new is available. If the reader fell behind and records were
   // overwritten, `c` is moved to the oldest record and *dropped is set.
   bool read(Cursor& c, Record& out, uint32_t* dropped = nullptr);
-  size_t pending(const Cursor& c);  // records between c and head
-  uint32_t sequence();              // total records written since boot
   size_t ringBytes() const { return _cap; }
   // Prints the whole ring buffer as text, oldest first.
   void dump(Print& out);
-
-  // Number of records dropped by the ring since boot (for diagnostics).
-  uint32_t overwritten();
 
  private:
   static constexpr size_t kHeader = 4 + 1 + 2;  // ms, level, len
@@ -92,12 +89,11 @@ class LogClass {
 
   uint8_t* _buf = nullptr;
   size_t _cap = 0;
-  size_t _head = 0;   // write position
-  size_t _tail = 0;   // oldest record
-  size_t _used = 0;   // bytes in use
+  size_t _head = 0;  // write position
+  size_t _tail = 0;  // oldest record
+  size_t _used = 0;  // bytes in use
   uint32_t _seqHead = 0;
   uint32_t _seqTail = 0;
-  uint32_t _overwritten = 0;
   Print* _out = nullptr;
   LogLevel _level = LogLevel::Info;
   SemaphoreHandle_t _mutex = nullptr;
@@ -105,26 +101,32 @@ class LogClass {
 
 extern LogClass Log;
 
+}  // namespace espbase
+
 // Compiled-out levels keep their arguments type checked (and used) but never evaluate them.
-#define ESPBASE_LOG_OFF(lvl, fmt, ...) do { if (0) Log.printf(lvl, fmt, ##__VA_ARGS__); } while (0)
+#define ESPBASE_LOG_OFF(lvl, fmt, ...)                \
+  do {                                                \
+    if (0)                                            \
+      ::espbase::Log.printf(lvl, fmt, ##__VA_ARGS__); \
+  } while (0)
 
 #if ESPBASE_LOG_MAX_LEVEL >= 1
-#define LOG_E(fmt, ...) Log.printf(LogLevel::Error, fmt, ##__VA_ARGS__)
+#define LOG_E(fmt, ...) ::espbase::Log.printf(::espbase::LogLevel::Error, fmt, ##__VA_ARGS__)
 #else
-#define LOG_E(fmt, ...) ESPBASE_LOG_OFF(LogLevel::Error, fmt, ##__VA_ARGS__)
+#define LOG_E(fmt, ...) ESPBASE_LOG_OFF(::espbase::LogLevel::Error, fmt, ##__VA_ARGS__)
 #endif
 #if ESPBASE_LOG_MAX_LEVEL >= 2
-#define LOG_W(fmt, ...) Log.printf(LogLevel::Warn, fmt, ##__VA_ARGS__)
+#define LOG_W(fmt, ...) ::espbase::Log.printf(::espbase::LogLevel::Warn, fmt, ##__VA_ARGS__)
 #else
-#define LOG_W(fmt, ...) ESPBASE_LOG_OFF(LogLevel::Warn, fmt, ##__VA_ARGS__)
+#define LOG_W(fmt, ...) ESPBASE_LOG_OFF(::espbase::LogLevel::Warn, fmt, ##__VA_ARGS__)
 #endif
 #if ESPBASE_LOG_MAX_LEVEL >= 3
-#define LOG_I(fmt, ...) Log.printf(LogLevel::Info, fmt, ##__VA_ARGS__)
+#define LOG_I(fmt, ...) ::espbase::Log.printf(::espbase::LogLevel::Info, fmt, ##__VA_ARGS__)
 #else
-#define LOG_I(fmt, ...) ESPBASE_LOG_OFF(LogLevel::Info, fmt, ##__VA_ARGS__)
+#define LOG_I(fmt, ...) ESPBASE_LOG_OFF(::espbase::LogLevel::Info, fmt, ##__VA_ARGS__)
 #endif
 #if ESPBASE_LOG_MAX_LEVEL >= 4
-#define LOG_D(fmt, ...) Log.printf(LogLevel::Debug, fmt, ##__VA_ARGS__)
+#define LOG_D(fmt, ...) ::espbase::Log.printf(::espbase::LogLevel::Debug, fmt, ##__VA_ARGS__)
 #else
-#define LOG_D(fmt, ...) ESPBASE_LOG_OFF(LogLevel::Debug, fmt, ##__VA_ARGS__)
+#define LOG_D(fmt, ...) ESPBASE_LOG_OFF(::espbase::LogLevel::Debug, fmt, ##__VA_ARGS__)
 #endif

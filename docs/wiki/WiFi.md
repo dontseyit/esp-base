@@ -114,7 +114,7 @@ Callbacks run on the loop task. The setters are safe from any task; the state ma
 
 | Task | Console | HTTP |
 | --- | --- | --- |
-| Show state and networks | `wifi status`, `wifi list` | `GET /api/wifi` |
+| Show state and networks | `wifi status`, `wifi list` | `GET /api/wifi`, or `base.wifi().writeJson(obj)` from code |
 | Set primary and connect | `wifi set <ssid> [pass]` | `POST /api/wifi {"ssid","pass"}` |
 | Add a backup (or update a stored password) | `wifi add <ssid> [pass]` | `POST /api/wifi {"ssid","pass","connect":false}` |
 | Remove one | `wifi remove <slot>` | `DELETE /api/wifi?slot=n` |

@@ -1,0 +1,77 @@
+#######################################
+# Syntax coloring map for EspBase
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+EspBase	KEYWORD1
+EspBaseConfig	KEYWORD1
+Console	KEYWORD1
+CmdArgs	KEYWORD1
+ConfigStore	KEYWORD1
+WifiManager	KEYWORD1
+WebConsole	KEYWORD1
+OtaUpdater	KEYWORD1
+App	KEYWORD1
+AppManager	KEYWORD1
+AppRegistry	KEYWORD1
+AppInfo	KEYWORD1
+InputEvent	KEYWORD1
+Frame	KEYWORD1
+LogLevel	KEYWORD1
+WifiMode	KEYWORD1
+WifiState	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+loop	KEYWORD2
+console	KEYWORD2
+wifi	KEYWORD2
+config	KEYWORD2
+web	KEYWORD2
+apps	KEYWORD2
+ota	KEYWORD2
+reboot	KEYWORD2
+factoryReset	KEYWORD2
+addCommand	KEYWORD2
+execute	KEYWORD2
+poll	KEYWORD2
+onConnected	KEYWORD2
+onDisconnected	KEYWORD2
+onApStarted	KEYWORD2
+onScanDone	KEYWORD2
+setCredentials	KEYWORD2
+addCredentials	KEYWORD2
+startScan	KEYWORD2
+setEnabled	KEYWORD2
+getString	KEYWORD2
+setString	KEYWORD2
+getInt	KEYWORD2
+setInt	KEYWORD2
+requestDraw	KEYWORD2
+push	KEYWORD2
+pop	KEYWORD2
+replace	KEYWORD2
+popToRoot	KEYWORD2
+input	KEYWORD2
+key	KEYWORD2
+start	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+LOG_E	LITERAL1
+LOG_W	LITERAL1
+LOG_I	LITERAL1
+LOG_D	LITERAL1
+REGISTER_APP	LITERAL1
+ESPBASE_VERSION	LITERAL1
+AppHidden	LITERAL1
+AppOverlay	LITERAL1
+AppTickInBackground	LITERAL1

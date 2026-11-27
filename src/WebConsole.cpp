@@ -1,115 +1,39 @@
+#ifndef ESPBASE_NO_WEB
+
 #include "WebConsole.h"
 
 #include <AsyncJson.h>
-#include <esp_arduino_version.h>
 #include <esp_random.h>
-#include <esp_system.h>
 #include <string.h>
 
-#include "ChipInfo.h"
+#include "EspBase.h"
 #include "WebGuard.h"
 #include "WifiManager.h"
 #include "web/index_html_gz.h"
 
-const String CmdArgs::_empty;
-
+namespace espbase {
 namespace {
 constexpr size_t kMaxWsMessage = 512;
 constexpr uint32_t kCleanupIntervalMs = 1000;
 constexpr int kMaxFramesPerLoop = 4;
-constexpr size_t kMaxJsonBody = 1024;        // API request bodies
-constexpr uint32_t kTicketMs = 30000;        // WebSocket ticket lifetime
-constexpr uint8_t kMaxAuthFailures = 5;      // then logins are refused for kLockoutMs
+constexpr size_t kMaxJsonBody = 1024;    // API request bodies
+constexpr uint32_t kTicketMs = 30000;    // WebSocket ticket lifetime
+constexpr uint8_t kMaxAuthFailures = 5;  // then that client's logins are refused for kLockoutMs
 constexpr uint32_t kLockoutMs = 30000;
 
-const char* resetReasonName(esp_reset_reason_t r) {
-  switch (r) {
-    case ESP_RST_POWERON: return "power-on";
-    case ESP_RST_EXT: return "external";
-    case ESP_RST_SW: return "software";
-    case ESP_RST_PANIC: return "panic";
-    case ESP_RST_INT_WDT: return "interrupt wdt";
-    case ESP_RST_TASK_WDT: return "task wdt";
-    case ESP_RST_WDT: return "wdt";
-    case ESP_RST_DEEPSLEEP: return "deep sleep";
-    case ESP_RST_BROWNOUT: return "brownout";
-    case ESP_RST_SDIO: return "sdio";
-    default: return "other";
-  }
-}
-
 const char* const kCaptiveProbes[] = {
-    "/generate_204", "/gen_204", "/hotspot-detect.html", "/library/test/success.html", "/connecttest.txt", "/ncsi.txt",
-    "/redirect", "/canonical.html", "/success.txt", "/check_network_status.txt",
+    "/generate_204", "/gen_204",        "/hotspot-detect.html", "/library/test/success.html", "/connecttest.txt", "/ncsi.txt",
+    "/redirect",     "/canonical.html", "/success.txt",         "/check_network_status.txt",
 };
 }  // namespace
 
-// ---- CmdArgs ---------------------------------------------------------------
-
-bool CmdArgs::parse(const String& line, String& cmd, CmdArgs& args) {
-  args._n = 0;
-  args._raw = "";
-  cmd = "";
-  const size_t n = line.length();
-  size_t i = 0;
-  auto skipSpace = [&]() {
-    while (i < n && isspace(static_cast<unsigned char>(line[i]))) {
-      i++;
-    }
-  };
-  auto token = [&](String& out) -> bool {
-    skipSpace();
-    if (i >= n) {
-      return false;
-    }
-    out = "";
-    if (line[i] == '"' || line[i] == '\'') {
-      const char q = line[i++];
-      while (i < n && line[i] != q) {
-        if (line[i] == '\\' && i + 1 < n) {
-          i++;
-        }
-        out += line[i++];
-      }
-      if (i < n) {
-        i++;  // closing quote
-      }
-    } else {
-      while (i < n && !isspace(static_cast<unsigned char>(line[i]))) {
-        out += line[i++];
-      }
-    }
-    return true;
-  };
-  if (!token(cmd)) {
-    return false;
-  }
-  skipSpace();
-  args._raw = line.substring(i);
-  args._raw.trim();
-  String t;
-  while (args._n < kMax && token(t)) {
-    args._v[args._n++] = t;
-  }
-  return true;
-}
-
-long CmdArgs::toInt(size_t i, long def) const {
-  if (i >= _n || _v[i].isEmpty()) {
-    return def;
-  }
-  char* end = nullptr;
-  const long v = strtol(_v[i].c_str(), &end, 0);
-  return (end != nullptr && *end == '\0') ? v : def;
-}
-
-// ---- WebConsole -------------------------------------------------------------
-
 WebConsole::WebConsole() : _ws("/ws") {}
 
-void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String& password) {
-  _cfg = &cfg;
-  _wifi = &wifi;
+void WebConsole::begin(EspBase& base, const String& password) {
+  _base = &base;
+  _cfg = &base.cfg();
+  _wifi = &base.wifi();
+  _console = &base.console();
   _password = password;
   if (_wsEvents == nullptr) {
     _wsEvents = xQueueCreate(16, sizeof(WsEvent));
@@ -118,13 +42,15 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
     _pendingMutex = xSemaphoreCreateMutex();
   }
   if (_server == nullptr) {
-    _server = new AsyncWebServer(cfg.httpPort);
+    _server = new AsyncWebServer(_cfg->httpPort);
   }
   _ws.onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
     onWsEvent(server, client, type, arg, data, len);
   });
   _ws.handleHandshake([this](AsyncWebServerRequest* request) { return consumeTicket(request); });
 
+  // Process wide: every AsyncWebServer response in this firmware carries them,
+  // the project's routes included. They only ever tighten what a browser does.
   DefaultHeaders::Instance().addHeader("X-Content-Type-Options", "nosniff");
   DefaultHeaders::Instance().addHeader("X-Frame-Options", "DENY");
   DefaultHeaders::Instance().addHeader("Referrer-Policy", "no-referrer");
@@ -151,7 +77,7 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
   setupRoutes();
   _server->addHandler(&_ws);
   _server->begin();
-  LOG_I("web: console on port %u (page %u bytes gzipped), ws at /ws", cfg.httpPort, static_cast<unsigned>(INDEX_HTML_GZ_LEN));
+  LOG_I("web: %s on port %u, api under /api, ws at /ws", _cfg->webUi ? "console" : "api only (no page)", _cfg->httpPort);
   if (!authRequired()) {
     LOG_W("web: no console password, anyone on the network can control this device (cfg.webPassword or \"config set web_pass\")");
   }
@@ -160,23 +86,33 @@ void WebConsole::begin(const EspBaseConfig& cfg, WifiManager& wifi, const String
 void WebConsole::setupRoutes() {
   AsyncWebServer& s = *_server;
 
-  s.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-    const AsyncWebHeader* inm = request->getHeader("If-None-Match");
-    if (inm != nullptr && inm->value() == INDEX_HTML_ETAG) {
-      request->send(304);
-      return;
-    }
-    AsyncWebServerResponse* response = request->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
-    response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("Cache-Control", "no-cache");
-    response->addHeader("ETag", INDEX_HTML_ETAG);
-    response->addHeader("Content-Security-Policy", INDEX_HTML_CSP);
-    request->send(response);
-  });
+  if (_cfg->webUi) {
+    s.on("/", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      // Without a password the API accepts only IP literals and our own names
+      // in Host (DNS rebinding). A router's own domain, like device.lan or
+      // device.fritz.box, would load the page and then fail every API call,
+      // so send the browser to the address it reached us on instead.
+      if (!authRequired() && !WebGuard::hostAllowed(request->host().c_str(), _wifi->hostname().c_str())) {
+        request->redirect("http://" + request->client()->localIP().toString() + "/");
+        return;
+      }
+      const AsyncWebHeader* inm = request->getHeader("If-None-Match");
+      if (inm != nullptr && inm->value() == INDEX_HTML_ETAG) {
+        request->send(304);
+        return;
+      }
+      AsyncWebServerResponse* response = request->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      response->addHeader("ETag", INDEX_HTML_ETAG);
+      response->addHeader("Content-Security-Policy", INDEX_HTML_CSP);
+      request->send(response);
+    });
+  }
 
   s.on("/api/info", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
-    writeInfo(response->getRoot().to<JsonObject>());
+    _base->writeInfo(response->getRoot().to<JsonObject>());
     response->setLength();
     request->send(response);
   });
@@ -199,8 +135,6 @@ void WebConsole::setupRoutes() {
   s.on("/api/wifi/scan", HTTP_GET, [this](AsyncWebServerRequest* request) {
     String body = "{\"scanning\":";
     body += _wifi->scanRunning() ? "true" : "false";
-    body += ",\"age\":";
-    body += _wifi->scanCompletedAt() ? static_cast<long>((millis() - _wifi->scanCompletedAt()) / 1000) : -1L;
     body += ",\"networks\":";
     const String nets = _wifi->scanResultJson();
     body += nets.isEmpty() ? "[]" : nets;
@@ -216,7 +150,7 @@ void WebConsole::setupRoutes() {
   s.on("/api/wifi", HTTP_GET, [this](AsyncWebServerRequest* request) {
     AsyncJsonResponse* response = new AsyncJsonResponse();
     JsonObject o = response->getRoot().to<JsonObject>();
-    writeWifiStatus(o);
+    _wifi->writeJson(o);
     const WifiManager::Settings st = _wifi->settings();
     JsonObject settings = o["settings"].to<JsonObject>();
     settings["staTimeoutMs"] = st.staTimeoutMs;
@@ -240,36 +174,36 @@ void WebConsole::setupRoutes() {
   // "connect":false stores only (first free slot when no slot is given);
   // {"slot":n} alone starts a round at that stored network.
   s.on("/api/wifi", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
-    const char* ssid = json["ssid"] | "";
-    const char* pass = json["pass"] | "";
-    const int slot = json["slot"] | 0;
-    const bool connect = json["connect"] | true;
-    bool ok = false;
-    String result = "{\"ok\":true}";
-    if (*ssid != '\0') {
-      if (slot < 0 || slot > WifiManager::kMaxSlots) {
-        ok = false;
-      } else if (connect) {
-        ok = _wifi->setCredentials(ssid, pass, static_cast<uint8_t>(slot > 0 ? slot : 1));
-      } else if (slot > 0) {
-        ok = _wifi->storeCredentials(ssid, pass, static_cast<uint8_t>(slot));
-      } else {
-        const uint8_t used = _wifi->addCredentials(ssid, pass);
-        ok = used > 0;
-        result = String("{\"ok\":true,\"slot\":") + used + '}';
-      }
-      if (!ok) {
-        request->send(400, "application/json", "{\"ok\":false,\"error\":\"ssid 1..32 chars, password empty or 8..63 chars, and a free slot\"}");
-        return;
-      }
-    } else if (slot >= 1 && slot <= WifiManager::kMaxSlots) {
-      _wifi->reconnect(static_cast<uint8_t>(slot));
-    } else {
-      request->send(400, "application/json", "{\"ok\":false,\"error\":\"ssid or slot required\"}");
-      return;
-    }
-    request->send(200, "application/json", result);
-  }).setMaxContentLength(kMaxJsonBody);
+     const char* ssid = json["ssid"] | "";
+     const char* pass = json["pass"] | "";
+     const int slot = json["slot"] | 0;
+     const bool connect = json["connect"] | true;
+     bool ok = false;
+     String result = "{\"ok\":true}";
+     if (*ssid != '\0') {
+       if (slot < 0 || slot > WifiManager::kMaxSlots) {
+         ok = false;
+       } else if (connect) {
+         ok = _wifi->setCredentials(ssid, pass, static_cast<uint8_t>(slot > 0 ? slot : 1));
+       } else if (slot > 0) {
+         ok = _wifi->storeCredentials(ssid, pass, static_cast<uint8_t>(slot));
+       } else {
+         const uint8_t used = _wifi->addCredentials(ssid, pass);
+         ok = used > 0;
+         result = String("{\"ok\":true,\"slot\":") + used + '}';
+       }
+       if (!ok) {
+         request->send(400, "application/json", "{\"ok\":false,\"error\":\"ssid 1..32 chars, password empty or 8..63 chars, and a free slot\"}");
+         return;
+       }
+     } else if (slot >= 1 && slot <= WifiManager::kMaxSlots) {
+       _wifi->reconnect(static_cast<uint8_t>(slot));
+     } else {
+       request->send(400, "application/json", "{\"ok\":false,\"error\":\"ssid or slot required\"}");
+       return;
+     }
+     request->send(200, "application/json", result);
+   }).setMaxContentLength(kMaxJsonBody);
 
   s.on("/api/wifi", HTTP_DELETE, [this](AsyncWebServerRequest* request) {
     const AsyncWebParameter* p = request->getParam("slot");
@@ -283,30 +217,30 @@ void WebConsole::setupRoutes() {
 
   // {"mode"?,"staTimeoutMs"?,"reconnectTimeoutMs"?,"apRetryIntervalMs"?}
   s.on("/api/wifi/settings", HTTP_POST, [this](AsyncWebServerRequest* request, JsonVariant& json) {
-    struct Field {
-      const char* field;
-      const char* key;
-    };
-    static const Field fields[] = {{"mode", EspBaseKeys::WifiModeKey},
-                                   {"staTimeoutMs", EspBaseKeys::StaTimeout},
-                                   {"reconnectTimeoutMs", EspBaseKeys::ReconnTimeout},
-                                   {"apRetryIntervalMs", EspBaseKeys::ApRetry}};
-    String err;
-    for (const Field& f : fields) {
-      if (json[f.field].isNull()) {
-        continue;
-      }
-      const String value = json[f.field].as<String>();
-      if (!_wifi->applySetting(f.key, value, err)) {
-        String body = "{\"ok\":false,\"error\":";
-        appendJsonString(body, err.c_str());
-        body += '}';
-        request->send(400, "application/json", body);
-        return;
-      }
-    }
-    request->send(200, "application/json", "{\"ok\":true}");
-  }).setMaxContentLength(kMaxJsonBody);
+     struct Field {
+       const char* field;
+       const char* key;
+     };
+     static const Field fields[] = {{"mode", Keys::WifiModeKey},
+                                    {"staTimeoutMs", Keys::StaTimeout},
+                                    {"reconnectTimeoutMs", Keys::ReconnTimeout},
+                                    {"apRetryIntervalMs", Keys::ApRetry}};
+     String err;
+     for (const Field& f : fields) {
+       if (json[f.field].isNull()) {
+         continue;
+       }
+       const String value = json[f.field].as<String>();
+       if (!_wifi->applySetting(f.key, value, err)) {
+         String body = "{\"ok\":false,\"error\":";
+         appendJsonString(body, err.c_str());
+         body += '}';
+         request->send(400, "application/json", body);
+         return;
+       }
+     }
+     request->send(200, "application/json", "{\"ok\":true}");
+   }).setMaxContentLength(kMaxJsonBody);
 
   for (const char* probe : kCaptiveProbes) {
     s.on(probe, HTTP_ANY, [this](AsyncWebServerRequest* request) {
@@ -385,8 +319,7 @@ void WebConsole::onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
       }
       break;
     }
-    default:
-      break;
+    default: break;
   }
 }
 
@@ -453,7 +386,7 @@ void WebConsole::runPendingCommands() {
     const int space = cmd.line.indexOf(' ');  // log the command name only: arguments may be passwords
     LOG_D("web: [%lu] > %s", static_cast<unsigned long>(cmd.id), (space < 0 ? cmd.line : cmd.line.substring(0, space)).c_str());
     StringPrint out;
-    execute(cmd.line, out);
+    _console->execute(cmd.line, out);
     String frame;
     frame.reserve(out.buf.length() + 24);
     frame += "{\"t\":\"out\",\"m\":";
@@ -551,137 +484,6 @@ void WebConsole::appendLogJson(String& out, const LogClass::Record& r) {
   out += '}';
 }
 
-// ---- Commands ----------------------------------------------------------------
-
-void WebConsole::addCommand(const char* name, CmdHandler handler, const char* help) {
-  for (auto& c : _commands) {
-    if (c.name.equalsIgnoreCase(name)) {
-      c.handler = std::move(handler);
-      c.help = help ? help : "";
-      return;
-    }
-  }
-  _commands.push_back(Command{String(name), String(help ? help : ""), std::move(handler)});
-}
-
-bool WebConsole::execute(const String& line, Print& out) {
-  String name;
-  CmdArgs args;
-  if (!CmdArgs::parse(line, name, args)) {
-    return true;  // empty line
-  }
-  for (auto& c : _commands) {
-    if (c.name.equalsIgnoreCase(name)) {
-      c.handler(args, out);
-      return true;
-    }
-  }
-  out.printf("unknown command \"%s\" (try: help)\r\n", name.c_str());
-  return false;
-}
-
-void WebConsole::printHelp(Print& out) {
-  std::vector<const Command*> sorted;
-  sorted.reserve(_commands.size());
-  for (auto& c : _commands) {
-    sorted.push_back(&c);
-  }
-  std::sort(sorted.begin(), sorted.end(), [](const Command* a, const Command* b) { return strcmp(a->name.c_str(), b->name.c_str()) < 0; });
-  for (const Command* c : sorted) {
-    out.printf("  %-14s %s\r\n", c->name.c_str(), c->help.c_str());
-  }
-}
-
-// ---- Info ---------------------------------------------------------------------
-
-void WebConsole::writeInfo(JsonObject o) {
-  o["chip"] = ESP.getChipModel();
-  o["target"] = ChipInfo::name();
-  o["rev"] = ESP.getChipRevision();
-  o["cores"] = ChipInfo::cores();
-  o["cpuMhz"] = ESP.getCpuFreqMHz();
-  o["flash"] = ESP.getFlashChipSize();
-  JsonObject heap = o["heap"].to<JsonObject>();
-  heap["free"] = ESP.getFreeHeap();
-  heap["min"] = ESP.getMinFreeHeap();
-  heap["maxAlloc"] = ESP.getMaxAllocHeap();
-  heap["total"] = ESP.getHeapSize();
-  if (ESP.getPsramSize() > 0) {
-    JsonObject psram = o["psram"].to<JsonObject>();
-    psram["size"] = ESP.getPsramSize();
-    psram["free"] = ESP.getFreePsram();
-  }
-  JsonObject sketch = o["sketch"].to<JsonObject>();
-  sketch["size"] = ESP.getSketchSize();
-  sketch["free"] = ESP.getFreeSketchSpace();
-  o["uptime"] = millis() / 1000;
-  o["hostname"] = _wifi->hostname();
-  o["mac"] = _wifi->macAddress();
-  writeWifiStatus(o["wifi"].to<JsonObject>());
-  o["fw"] = _cfg->fwVersion;
-  o["build"] = __DATE__ " " __TIME__;
-  o["lib"] = ESPBASE_VERSION;
-  o["core"] = ESP_ARDUINO_VERSION_STR;
-  o["idf"] = ESP.getSdkVersion();
-  o["reset"] = resetReasonName(esp_reset_reason());
-#ifdef ESPBASE_NO_OTA
-  o["ota"] = false;
-#else
-  o["ota"] = _cfg->otaEnabled;
-#endif
-  o["ws"] = _ws.count();
-  o["log"] = LogClass::levelName(Log.level());
-}
-
-// Shared by GET /api/wifi and the "wifi" object of /api/info.
-void WebConsole::writeWifiStatus(JsonObject o) {
-  o["mode"] = WifiManager::modeName(_wifi->settings().mode);
-  o["state"] = _wifi->stateName();
-  o["ssid"] = _wifi->staSsid();
-  o["ip"] = _wifi->isConnected() ? _wifi->localIP().toString() : String();
-  o["rssi"] = _wifi->rssi();
-  if (_wifi->apActive()) {
-    JsonObject ap = o["ap"].to<JsonObject>();
-    ap["ssid"] = _wifi->apSsid();
-    ap["ip"] = _wifi->apIP().toString();
-    ap["clients"] = _wifi->apClients();
-  }
-}
-
-void WebConsole::printInfo(Print& out) {
-  out.printf("chip:     %s rev %u, %d core(s) @ %lu MHz (%s)\r\n", ESP.getChipModel(), ESP.getChipRevision(), ChipInfo::cores(),
-             static_cast<unsigned long>(ESP.getCpuFreqMHz()), ChipInfo::name());
-  out.printf("flash:    %lu KB\r\n", static_cast<unsigned long>(ESP.getFlashChipSize() / 1024));
-  out.printf("heap:     %lu KB free, %lu KB min, %lu KB largest block\r\n", static_cast<unsigned long>(ESP.getFreeHeap() / 1024),
-             static_cast<unsigned long>(ESP.getMinFreeHeap() / 1024), static_cast<unsigned long>(ESP.getMaxAllocHeap() / 1024));
-  if (ESP.getPsramSize() > 0) {
-    out.printf("psram:    %lu KB free of %lu KB\r\n", static_cast<unsigned long>(ESP.getFreePsram() / 1024),
-               static_cast<unsigned long>(ESP.getPsramSize() / 1024));
-  }
-  out.printf("sketch:   %lu KB used, %lu KB free\r\n", static_cast<unsigned long>(ESP.getSketchSize() / 1024),
-             static_cast<unsigned long>(ESP.getFreeSketchSpace() / 1024));
-  out.printf("uptime:   %lu s\r\n", static_cast<unsigned long>(millis() / 1000));
-  out.printf("hostname: %s (%s)\r\n", _wifi->hostname().c_str(), _wifi->macAddress().c_str());
-  if (_wifi->isConnected()) {
-    out.printf("wifi:     %s, \"%s\", %s, %d dBm\r\n", _wifi->stateName(), _wifi->staSsid().c_str(), _wifi->localIP().toString().c_str(),
-               _wifi->rssi());
-  } else {
-    out.printf("wifi:     %s\r\n", _wifi->stateName());
-  }
-  if (_wifi->apActive()) {
-    out.printf("ap:       \"%s\" at %s, %u client(s)\r\n", _wifi->apSsid().c_str(), _wifi->apIP().toString().c_str(), _wifi->apClients());
-  }
-  out.printf("firmware: %s, built %s %s\r\n", _cfg->fwVersion, __DATE__, __TIME__);
-  out.printf("versions: esp-base %s, arduino %s, idf %s\r\n", ESPBASE_VERSION, ESP_ARDUINO_VERSION_STR, ESP.getSdkVersion());
-  out.printf("reset:    %s\r\n", resetReasonName(esp_reset_reason()));
-#ifdef ESPBASE_NO_OTA
-  out.println("ota:      compiled out");
-#else
-  out.printf("ota:      %s\r\n", _cfg->otaEnabled ? "enabled" : "disabled");
-#endif
-  out.printf("console:  %u ws client(s), log level %s\r\n", static_cast<unsigned>(_ws.count()), LogClass::levelName(Log.level()));
-}
-
 // ---- Request checks ------------------------------------------------------------
 
 bool WebConsole::trustedOrigin(AsyncWebServerRequest* request) const {
@@ -693,23 +495,45 @@ bool WebConsole::trustedOrigin(AsyncWebServerRequest* request) const {
   return WebGuard::originMatches(origin != nullptr ? origin->value().c_str() : nullptr, host.c_str());
 }
 
+// ponytail: 4 lockout entries keyed by IPv4; IPv6 clients share key 0. Grow when a device meets more than a handful of browsers.
+WebConsole::Lockout& WebConsole::lockoutFor(uint32_t ip) {
+  Lockout* victim = &_lockouts[0];
+  for (Lockout& l : _lockouts) {
+    if (l.ip == ip) {
+      return l;
+    }
+    if (l.failures == 0 && l.until == 0) {
+      victim = &l;  // idle entry
+    } else if (victim->failures != 0 || victim->until != 0) {
+      if (static_cast<int32_t>(l.until - victim->until) < 0) {
+        victim = &l;  // else the one whose lockout ends first
+      }
+    }
+  }
+  *victim = Lockout{};
+  victim->ip = ip;
+  return *victim;
+}
+
 bool WebConsole::authenticated(AsyncWebServerRequest* request) {
   if (!authRequired()) {
     return true;
   }
   const uint32_t now = millis();
-  if (_lockedUntil != 0 && static_cast<int32_t>(now - _lockedUntil) < 0) {
+  Lockout& l = lockoutFor(static_cast<uint32_t>(request->client()->remoteIP()));
+  if (l.until != 0 && static_cast<int32_t>(now - l.until) < 0) {
     return false;
   }
-  _lockedUntil = 0;
+  l.until = 0;
   if (request->authenticate(kUser, _password.c_str(), kRealm)) {
-    _authFailures = 0;
+    l.failures = 0;
     return true;
   }
-  if (request->authType() != AsyncAuthType::AUTH_NONE && ++_authFailures >= kMaxAuthFailures) {
-    _authFailures = 0;
-    _lockedUntil = now + kLockoutMs;
-    LOG_W("web: %u failed logins, refusing logins for %lu s", kMaxAuthFailures, static_cast<unsigned long>(kLockoutMs / 1000));
+  if (request->authType() != AsyncAuthType::AUTH_NONE && ++l.failures >= kMaxAuthFailures) {
+    l.failures = 0;
+    l.until = now + kLockoutMs;
+    LOG_W("web: %u failed logins from %s, refusing its logins for %lu s", kMaxAuthFailures, request->client()->remoteIP().toString().c_str(),
+          static_cast<unsigned long>(kLockoutMs / 1000));
   }
   return false;
 }
@@ -749,3 +573,7 @@ bool WebConsole::consumeTicket(AsyncWebServerRequest* request) {
   LOG_W("web: WebSocket from %s refused, missing or expired ticket", request->client()->remoteIP().toString().c_str());
   return false;
 }
+
+}  // namespace espbase
+
+#endif  // ESPBASE_NO_WEB

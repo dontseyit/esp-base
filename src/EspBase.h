@@ -1,25 +1,36 @@
-// EspBase: the facade. Owns Log, ConfigStore, WifiManager, WebConsole and
-// OtaUpdater, and wires them together.
+// EspBase: the facade. Owns Log, ConfigStore, WifiManager, Console and, unless
+// compiled out, WebConsole (-DESPBASE_NO_WEB), OtaUpdater (-DESPBASE_NO_OTA)
+// and AppManager (-DESPBASE_NO_APPS), and wires them together.
 //
 //   #include <EspBase.h>
+//   using namespace espbase;
 //   EspBaseConfig cfg;  cfg.hostname = "my-device";
 //   EspBase base;
 //   void setup() { Serial.begin(115200); cfg.logOutput = &Serial; base.begin(cfg); }
-//   void loop()  { base.loop(); }
+//   void loop()  { base.loop(); base.console().poll(Serial); }
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
-#include "AppManager.h"
 #include "ChipInfo.h"
 #include "ConfigStore.h"
+#include "Console.h"
 #include "EspBaseConfig.h"
+#include "Keys.h"
 #include "Log.h"
-#include "WebConsole.h"
 #include "WifiManager.h"
+#ifndef ESPBASE_NO_WEB
+#include "WebConsole.h"
+#endif
 #ifndef ESPBASE_NO_OTA
 #include "OtaUpdater.h"
 #endif
+#ifndef ESPBASE_NO_APPS
+#include "AppManager.h"
+#endif
+
+namespace espbase {
 
 class EspBase {
  public:
@@ -28,16 +39,24 @@ class EspBase {
   // Call from loop(); never blocks.
   void loop();
 
-  WebConsole& console() { return _console; }
-  AsyncWebServer& web() { return _console.server(); }  // valid after begin()
+  Console& console() { return _console; }
   WifiManager& wifi() { return _wifi; }
   ConfigStore& config() { return _store; }
+#ifndef ESPBASE_NO_WEB
+  WebConsole& webConsole() { return _web; }
+  AsyncWebServer& web() { return _web.server(); }  // valid after begin()
+#endif
+#ifndef ESPBASE_NO_APPS
   AppManager& apps() { return _apps; }  // call apps().start(...) after begin() to run the registered apps
+#endif
 #ifndef ESPBASE_NO_OTA
   OtaUpdater& ota() { return _ota; }
 #endif
   const EspBaseConfig& cfg() const { return _cfg; }
   static const char* version() { return ESPBASE_VERSION; }
+
+  // Device summary shared by the "info" command and GET /api/info.
+  void writeInfo(JsonObject o);
 
   // Schedules a restart from loop() (gives responses time to flush).
   void reboot(uint32_t delayMs = 500);
@@ -53,9 +72,14 @@ class EspBase {
 
   EspBaseConfig _cfg;
   ConfigStore _store;
+  Console _console;
   WifiManager _wifi;
-  WebConsole _console;
+#ifndef ESPBASE_NO_WEB
+  WebConsole _web;
+#endif
+#ifndef ESPBASE_NO_APPS
   AppManager _apps;
+#endif
 #ifndef ESPBASE_NO_OTA
   OtaUpdater _ota;
 #endif
@@ -63,3 +87,5 @@ class EspBase {
   uint32_t _rebootAt = 0;
   bool _ledOn = false;
 };
+
+}  // namespace espbase

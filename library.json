@@ -1,8 +1,8 @@
 {
   "name": "EspBase",
-  "version": "1.2.0",
-  "description": "Baseline for ESP32 Arduino projects: WiFi station with AP fallback and captive portal, browser console with live logs and commands, OTA updates, persistent config and structured logging.",
-  "keywords": "esp32, esp32-s3, esp32-c3, wifi, captive portal, ota, websocket, console, logging",
+  "version": "2.0.0",
+  "description": "Common ground for ESP32 projects: WiFi with AP fallback and captive portal, browser and serial console with live logs and commands, OTA, NVS settings, logging, NTP time and an optional app framework. Arduino core 3.x.",
+  "keywords": "esp32, esp32-s3, esp32-c3, wifi, captive portal, ota, websocket, console, logging, ntp, framework",
   "repository": {
     "type": "git",
     "url": "https://github.com/dontseyit/esp-base.git"
@@ -41,9 +41,14 @@
       "webui",
       "tools",
       "platformio.ini",
-      "PROJECT.md",
       "docs",
-      "test"
+      "test",
+      ".vscode",
+      ".clang-format",
+      ".editorconfig",
+      "CONTRIBUTING.md",
+      "SECURITY.md",
+      "CHANGELOG.md"
     ]
   }
 }

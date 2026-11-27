@@ -2,6 +2,8 @@
 
 [Home](Home.md) / Console and API
 
+The console is one command registry (`Console`, reached as `base.console()`) with two front ends: the serial port, through `base.console().poll(Serial)` in your `loop()`, and the browser, through `WebConsole` (the web server, the WebSocket and the page). Register a command once and it works in both. `-DESPBASE_NO_WEB` removes the browser side and keeps the serial one.
+
 ## The web console
 
 Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single gzipped file served from flash, about 6 KB.
@@ -11,12 +13,15 @@ Open `http://<hostname>.local/` or `http://192.168.4.1/`. The page is a single g
 - **Update**: firmware upload.
 - **Info**: device summary as JSON.
 
+`cfg.webUi = false` keeps the API and the WebSocket but does not serve the page, for a project that ships its own UI. The project's page can live at `/` on `base.web()` and use the same `/api` routes and `/ws` protocol described below.
+
 ## Built-in commands
 
 | Command | Does |
 | --- | --- |
 | `help` | List every command. |
-| `info`, `heap` | Device summary, heap statistics. |
+| `info`, `heap` | Device summary (the JSON of `GET /api/info`), heap statistics. |
+| `time` | Local time from NTP, or why there is none yet. |
 | `reboot`, `factory-reset` | Restart, or erase the `espbase` namespace and restart. |
 | `wifi ...` | Networks, mode, scan. See [WiFi](WiFi.md#managing-networks). |
 | `config list\|get\|set` | Persisted keys. See [Logging and config](Logging-and-Config.md#key-reference). |
@@ -35,10 +40,10 @@ base.console().addCommand("led",
   "led on|off");
 ```
 
-- `CmdArgs` gives `a[i]`, `a.has(i)`, `a.is(i, "word")` (case insensitive), `a.toInt(i, def)`, `a.size()` and `a.raw()` for everything after the name. Up to 8 arguments; quote values with spaces.
+- `CmdArgs` gives `a[i]`, `a.has(i)`, `a.is(i, "word")` (case insensitive), `a.toInt(i, def)` and `a.size()`. Up to 8 arguments; quote values with spaces.
 - Handlers run on the loop task, so any library API is safe. Return quickly: the output is collected and sent as one message.
 - Registering an existing name replaces its handler.
-- To accept commands on Serial too, pass each line to `base.console().execute(line, Serial)`. The example does this.
+- `base.console().poll(Serial)` reads lines from the serial port without blocking and runs them with output to the port. `base.console().execute(line, out)` runs one line from any other source.
 
 ## Adding an HTTP route
 
@@ -62,8 +67,8 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 
 | Route | Description |
 | --- | --- |
-| `GET /` | The console page, `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). |
-| `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `hostname`, `mac`, `wifi{state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`. |
+| `GET /` | The console page (`cfg.webUi`), `Content-Encoding: gzip`, `ETag` and `Cache-Control: no-cache` (304 on revalidation). Without a password, a Host the device does not accept is redirected to the device's IP. |
+| `GET /api/info` | JSON: `chip`, `target`, `rev`, `cores`, `cpuMhz`, `flash`, `heap{free,min,maxAlloc,total}`, `psram{size,free}`, `sketch{size,free}`, `uptime`, `time`, `hostname`, `mac`, `wifi{mode,state,ssid,ip,rssi,ap{ssid,ip,clients}}`, `fw`, `build`, `lib`, `core`, `idf`, `reset`, `ota`, `ws`, `log`. |
 | `GET /api/log` | The ring buffer as text. |
 | `GET /api/ws-ticket` | `{"ticket":"..."}`, a single-use WebSocket ticket valid for 30 s. |
 | `GET /api/wifi` | `{"mode","state","ssid","ip","rssi","ap":{...},"settings":{"staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"},"maxSlots":5,"networks":[{"slot","ssid","hasPassword"}]}`. |
@@ -71,9 +76,9 @@ base.web().on("/api/led", HTTP_POST, [](AsyncWebServerRequest* r, JsonVariant& j
 | `DELETE /api/wifi?slot=n` | Remove a stored network. |
 | `POST /api/wifi/settings` | Any of `{"mode":"sta\|ap\|apsta","staTimeoutMs","reconnectTimeoutMs","apRetryIntervalMs"}`, validated, persisted and applied without a reboot. 400 with an `error` on the first invalid field. |
 | `POST /api/wifi/scan` | Start a scan: 202, or 409 when busy. |
-| `GET /api/wifi/scan` | `{"scanning":bool,"age":seconds,"networks":[{"ssid","rssi","ch","enc"}]}`. |
-| `GET /api/apps`, `POST /api/apps` | App registry, stack and stats; `open`, `replace`, `close`, `home` and `key` actions. See [Apps](Apps.md#console-and-api). |
-| `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#4-update-the-firmware). |
+| `GET /api/wifi/scan` | `{"scanning":bool,"networks":[{"ssid","rssi","ch","enc"}]}`. |
+| `GET /api/apps` | App registry and stack. See [Apps](Apps.md#console-and-api). |
+| `POST /update` | Multipart firmware upload. See [Getting started](Getting-Started.md#5-update-the-firmware). |
 | `GET /ws` | WebSocket. |
 
 Any other path returns 404, except while the AP is up: requests that arrive through the AP interface for a foreign host (the connectivity probes phones and laptops send) are redirected to the portal.
